@@ -17,7 +17,6 @@ def load_model():
 
 model, class_names = load_model()
 
-# Yükleme veya Kamera seçimi
 upload_type = st.radio("Girdi türünü seçin:", ("Fotoğraf Yükle", "Kamera Kullan"))
 
 image = None
@@ -31,14 +30,12 @@ else:
     if camera_file is not None:
         image = Image.open(camera_file)
 
-if image is notيج with st:
-    # Görüntüyü modele uygun hale getir
+if image is not None:
     image = np.array(image)
     img_resized = cv2.resize(image, (224, 224))
     img_array = np.asarray(img_resized, dtype=np.float32).reshape(1, 224, 224, 3)
     img_normalized = (img_array / 127.5) - 1
 
-    # Tahmin yap
     prediction = model.predict(img_normalized)
     index = np.argmax(prediction)
     class_name = class_names[index]
