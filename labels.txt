@@ -1,3 +1,15 @@
+# Etiketleri oku ve başındaki sayıları (0, 1, 2...) otomatik temizle
+@st.cache_data
+def load_labels():
+    with open("labels.txt", "r", encoding="utf-8") as f:
+        class_names = []
+        for line in f.readlines():
+            # Satırdaki sayıları ve boşlukları temizle (Örn: "0 A Harfi" -> "A Harfi")
+            clean_line = line.strip()
+            if " " in clean_line:
+                clean_line = clean_line.split(" ", 1)[1]
+            class_names.append(clean_line)
+    return class_names
 A Harfi
 B Harfi
 C Harfi
