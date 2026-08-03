@@ -45,3 +45,10 @@ if image is not None:
     # Model dosyası entegrasyonu stabil hale gelene kadar arayüz test edilebilir
     st.success(f"🎯 Tahmin: {class_names[0] if 'class_names' in locals() else 'Sınıf Bulunamadı'}")
     st.info("📊 Model bağlantısı güncellendi.")
+# Dosya okumadan doğrudan temiz liste
+class_names = [
+    "A Harfi", "B Harfi", "C Harfi", "Ç Harfi", "D Harfi", "E Harfi", "F Harfi", 
+    "G Harfi", "Ğ Harfi", "H Harfi", "I Harfi", "İ Harfi", "J Harfi", "K Harfi", 
+    "L Harfi", "M Harfi", "N Harfi", "O Harfi", "Ö Harfi", "P Harfi", "R Harfi", 
+    "S Harfi", "Ş Harfi", "T Harfi", "U Harfi", "Ü Harfi", "V Harfi", "Y Harfi", "Z Harfi"
+]
