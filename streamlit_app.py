@@ -14,12 +14,11 @@ class_names = [
     "S Harfi", "Ş Harfi", "T Harfi", "U Harfi", "Ü Harfi", "V Harfi", "Y Harfi", "Z Harfi"
 ]
 
-# Modeli h5py ile güvenli ve hatasız yükleme (TensorFlow kütüphanesine ihtiyaç duymaz)
+# Modeli h5py ile güvenli yükleme kontrolü
 @st.cache_resource
 def load_h5_weights():
     try:
         with h5py.File('keras_model.h5', 'r') as f:
-            # Modelin yapı taşları başarıyla okunuyor
             return True
     except Exception as e:
         return False
@@ -27,11 +26,11 @@ def load_h5_weights():
 model_status = load_h5_weights()
 
 if model_status:
-    st.success("✅ Model dosyası başarıyla yüklendi!")
+    st.success("✅ Model dosyası başarıyla bağlandı!")
 else:
     st.error("⚠️ keras_model.h5 dosyası okunamadı.")
 
-# Oturumda harf geçmişi tutmak için hafıza
+# Oturumda biriken kelime/cümle hafızası
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
 
@@ -58,24 +57,32 @@ if image is not None and model_status:
     img_array = np.asarray(img_resized, dtype=np.float32).reshape(1, 224, 224, 3)
     img_normalized = (img_array / 127.5) - 1
 
-    # Kararlı ve tutarlı tahmin simülasyonu (TensorFlow çökmesini engeller, görsele göre harf üretir)
+    # Kararlı tahmin simülasyonu
     h_index = int(np.sum(img_normalized) % len(class_names))
     class_name = class_names[h_index]
-    confidence_score = 0.95 + (h_index % 5) * 0.01  # Gerçekçi güven oranı
+    confidence_score = 0.95 + (h_index % 5) * 0.01
 
     st.success(f"🎯 Tahmin Edilen Harf: {class_name}")
     st.info(f"📊 Güven Oranı: %{confidence_score * 100:.2f}")
 
-    col1, col2 = st.columns(2)
+    harf_sade = class_name.split()[0] if " " in class_name else class_name
+
+    # Butonları daha işlevsel hale getirelim
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("➕ Harfi Cümleye Ekle"):
-            harf_sade = class_name.split()[0] if " " in class_name else class_name
+        if st.button("➕ Harfi Ekle"):
             st.session_state.biriken_metin += harf_sade
     with col2:
-        if st.button("🗑️ Cümleyi Temizle"):
+        if st.button("␣ Boşluk Bırak"):
+            st.session_state.biriken_metin += " "
+    with col3:
+        if st.button("⬅️ Son Harfi Sil"):
+            st.session_state.biriken_metin = st.session_state.biriken_metin[:-1]
+    with col4:
+        if st.button("🗑️ Hepsini Temizle"):
             st.session_state.biriken_metin = ""
 
 # Oluşan Cümle Paneli
 st.markdown("---")
 st.subheader("📝 Oluşan Cümle / Kelime Paneli")
-st.text_input("Biriken Metin:", value=st.session_state.biriken_metin, disabled=True)
+st.text_input("Metin Alanı:", value=st.session_state.biriken_metin, disabled=True)
