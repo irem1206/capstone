@@ -1,29 +1,29 @@
-0 A Harfi
-1 B Harfi
-2 C Harfi
-3 Ç Harfi
-4 D Harfi
-5 E Harfi
-6 F Harfi
-7 G Harfi
-8 Ğ Harfi
-9 H Harfi
-10 I Harfi
-11 İ Harfi
-12 J Harfi
-13 K Harfi
-14 L Harfi
-15 M Harfi
-16 N Harfi
-17 O Harfi
-18 Ö Harfi
-19 P Harfi
-20 R Harfi
-21 S Harfi
-22 Ş Harfi
-23 T Harfi
-24 U Harfi
-25 Ü Harfi
-26 V Harfi
-27 Y Harfi
-28 Z Harfi
+A Harfi
+B Harfi
+C Harfi
+Ç Harfi
+D Harfi
+E Harfi
+F Harfi
+G Harfi
+Ğ Harfi
+H Harfi
+I Harfi
+İ Harfi
+J Harfi
+K Harfi
+L Harfi
+M Harfi
+N Harfi
+O Harfi
+Ö Harfi
+P Harfi
+R Harfi
+S Harfi
+Ş Harfi
+T Harfi
+U Harfi
+Ü Harfi
+V Harfi
+Y Harfi
+Z Harfi
