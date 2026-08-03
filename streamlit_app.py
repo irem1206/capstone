@@ -30,34 +30,39 @@ if model_status:
 else:
     st.error("⚠️ keras_model.h5 dosyası okunamadı.")
 
-# Oturumda biriken kelime/cümle hafızası
+# Oturumda biriken kelime/cümle hafızası ve son işlenen resmi takip etme
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
+if "son_islenen_dosya" not in st.session_state:
+    st.session_state.son_islenen_dosya = None
 
 upload_type = st.radio("Girdi türünü seçin:", ("Fotoğraf Yükle", "Kamera Kullan"))
 
 image = None
+current_file_id = None
 
 if upload_type == "Fotoğraf Yükle":
     uploaded_file = st.file_uploader("Bir resim seçin...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
+        current_file_id = uploaded_file.name + str(uploaded_file.size)
 else:
     camera_file = st.camera_input("Kameradan fotoğraf çek")
     if camera_file is not None:
         image = Image.open(camera_file)
+        current_file_id = "kamera_fotografi"
 
 if image is not None and model_status:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
     # Görüntü ön işleme
-    image = image.convert('RGB')
-    image = np.array(image)
-    img_resized = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
+    img_conv = image.convert('RGB')
+    img_arr = np.array(img_conv)
+    img_resized = cv2.resize(img_arr, (224, 224), interpolation=cv2.INTER_AREA)
     img_array = np.asarray(img_resized, dtype=np.float32).reshape(1, 224, 224, 3)
     img_normalized = (img_array / 127.5) - 1
 
-    # Kararlı tahmin simülasyonu
+    # Tahmin simülasyonu
     h_index = int(np.sum(img_normalized) % len(class_names))
     class_name = class_names[h_index]
     confidence_score = 0.95 + (h_index % 5) * 0.01
@@ -67,22 +72,28 @@ if image is not None and model_status:
 
     harf_sade = class_name.split()[0] if " " in class_name else class_name
 
-    # Butonları daha işlevsel hale getirelim
-    col1, col2, col3, col4 = st.columns(4)
+    # Eğer yeni bir görsel yüklendiyse, kullanıcı tekrar buton basmadan harfi otomatik ekleyelim
+    if current_file_id != st.session_state.son_islenen_dosya:
+        st.session_state.biriken_metin += harf_sade
+        st.session_state.son_islenen_dosya = current_file_id
+
+    # Ek Kontrol Butonları
+    col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("➕ Harfi Ekle"):
-            st.session_state.biriken_metin += harf_sade
-    with col2:
         if st.button("␣ Boşluk Bırak"):
             st.session_state.biriken_metin += " "
-    with col3:
+            st.rerun()
+    with col2:
         if st.button("⬅️ Son Harfi Sil"):
             st.session_state.biriken_metin = st.session_state.biriken_metin[:-1]
-    with col4:
+            st.rerun()
+    with col3:
         if st.button("🗑️ Hepsini Temizle"):
             st.session_state.biriken_metin = ""
+            st.session_state.son_islenen_dosya = None
+            st.rerun()
 
-# Oluşan Cümle Paneli
+# Oluşan Cümle Paneli (Her zaman en altta kalıcı olarak görünür)
 st.markdown("---")
 st.subheader("📝 Oluşan Cümle / Kelime Paneli")
-st.text_input("Metin Alanı:", value=st.session_state.biriken_metin, disabled=True)
+st.text_input("Metin Alanı:", value=st.session_state.biriken_metin, key="metin_kutusu", disabled=True)
