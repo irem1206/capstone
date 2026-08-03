@@ -30,27 +30,22 @@ if model_status:
 else:
     st.error("⚠️ keras_model.h5 dosyası okunamadı.")
 
-# Oturumda biriken kelime/cümle hafızası ve son işlenen resmi takip etme
+# Oturumda biriken kelime/cümle hafızası
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
-if "son_islenen_dosya" not in st.session_state:
-    st.session_state.son_islenen_dosya = None
 
 upload_type = st.radio("Girdi türünü seçin:", ("Fotoğraf Yükle", "Kamera Kullan"))
 
 image = None
-current_file_id = None
 
 if upload_type == "Fotoğraf Yükle":
     uploaded_file = st.file_uploader("Bir resim seçin...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
-        current_file_id = uploaded_file.name + str(uploaded_file.size)
 else:
     camera_file = st.camera_input("Kameradan fotoğraf çek")
     if camera_file is not None:
         image = Image.open(camera_file)
-        current_file_id = "kamera_fotografi"
 
 if image is not None and model_status:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
@@ -72,28 +67,12 @@ if image is not None and model_status:
 
     harf_sade = class_name.split()[0] if " " in class_name else class_name
 
-    # Eğer yeni bir görsel yüklendiyse, kullanıcı tekrar buton basmadan harfi otomatik ekleyelim
-    if current_file_id != st.session_state.son_islenen_dosya:
+    # Sadece senin bastığında harfi ekleyen buton
+    if st.button("➕ Bu Harfi Cümleye Ekle"):
         st.session_state.biriken_metin += harf_sade
-        st.session_state.son_islenen_dosya = current_file_id
+        st.success(f"'{harf_sade' cümele ekவிட்டது/eklendi.")
 
-    # Ek Kontrol Butonları
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("␣ Boşluk Bırak"):
-            st.session_state.biriken_metin += " "
-            st.rerun()
-    with col2:
-        if st.button("⬅️ Son Harfi Sil"):
-            st.session_state.biriken_metin = st.session_state.biriken_metin[:-1]
-            st.rerun()
-    with col3:
-        if st.button("🗑️ Hepsini Temizle"):
-            st.session_state.biriken_metin = ""
-            st.session_state.son_islenen_dosya = None
-            st.rerun()
-
-# Oluşan Cümle Paneli (Her zaman en altta kalıcı olarak görünür)
+# Oluşan Cümle Paneli (Burada artık elle de silebilir/düzenleyebilirsin)
 st.markdown("---")
 st.subheader("📝 Oluşan Cümle / Kelime Paneli")
-st.text_input("Metin Alanı:", value=st.session_state.biriken_metin, key="metin_kutusu", disabled=True)
+st.session_state.biriken_metin = st.text_input("Metni Buradan Düzenleyebilirsin:", value=st.session_state.biriken_metin)
