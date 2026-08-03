@@ -67,12 +67,12 @@ if image is not None and model_status:
 
     harf_sade = class_name.split()[0] if " " in class_name else class_name
 
-    # Sadece senin bastığında harfi ekleyen buton
+    # Sadece tuşa bastığında harfi ekleyen buton
     if st.button("➕ Bu Harfi Cümleye Ekle"):
         st.session_state.biriken_metin += harf_sade
-        st.success(f"'{harf_sade' cümele ekவிட்டது/eklendi.")
+        st.success(f"'{harf_sade}' cümeleye eklendi.")
 
-# Oluşan Cümle Paneli (Burada artık elle de silebilir/düzenleyebilirsin)
+# Oluşan Cümle Paneli
 st.markdown("---")
 st.subheader("📝 Oluşan Cümle / Kelime Paneli")
 st.session_state.biriken_metin = st.text_input("Metni Buradan Düzenleyebilirsin:", value=st.session_state.biriken_metin)
