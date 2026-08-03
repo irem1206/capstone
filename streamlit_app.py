@@ -1,20 +1,20 @@
 import streamlit as st
 import numpy as np
 import cv2
-import tf_keras
 from PIL import Image
+from tensorflow.keras.models import load_model
 
 st.title("✋ İşaret Dili Tanıma Asistanı")
 st.write("Kameranızı kullanabilir veya fotoğraf yükleyebilirsiniz.")
 
 @st.cache_resource
-def load_model():
-    model = tf_keras.models.load_model("keras_model.h5", compile=False)
+def get_model():
+    model = load_model("keras_model.h5", compile=False)
     with open("labels.txt", "r", encoding="utf-8") as f:
         class_names = [line.strip() for line in f.readlines()]
     return model, class_names
 
-model, class_names = load_model()
+model, class_names = get_model()
 
 upload_type = st.radio("Girdi türünü seçin:", ("Fotoğraf Yükle", "Kamera Kullan"))
 
@@ -30,6 +30,11 @@ else:
         image = Image.open(camera_file)
 
 if image is not None:
+    # Görüntüyü ekranda göster
+    st.image(image, caption="İşlenen Görüntü", use_column_width=True)
+    
+    # Modeli tahmin için hazırla
+    image = image.convert('RGB')
     image = np.array(image)
     img_resized = cv2.resize(image, (224, 224))
     img_array = np.asarray(img_resized, dtype=np.float32).reshape(1, 224, 224, 3)
