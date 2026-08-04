@@ -4,7 +4,6 @@ from PIL import Image, ImageOps
 import cv2
 import os
 import urllib.request
-import tensorflow as tf
 
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
@@ -13,6 +12,18 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# --- GÜVENLİ TFLITE YÜKLEME KONTROLÜ ---
+try:
+    import tensorflow as tf
+    interpreter_class = tf.lite.Interpreter
+except ImportError:
+    try:
+        import tflite_runtime.interpreter as tflite
+        interpreter_class = tflite.Interpreter
+    except ImportError:
+        # TensorFlow yerine harici yükleme hatasını yakala
+        interpreter_class = None
 
 # --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
@@ -48,6 +59,9 @@ GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model
 
 @st.cache_resource(show_spinner=False)
 def sistem_bilesenlerini_yukle():
+    if interpreter_class is None:
+        return None, [], "Kritik Hata: TFLite yorumlayıcı kütüphanesi ortamda bulunamadı."
+
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
@@ -55,7 +69,7 @@ def sistem_bilesenlerini_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
+        interpreter = interpreter_class(model_path=MODEL_YOLU)
         interpreter.allocate_tensors()
         
         if os.path.exists(ETIKET_YOLU):
@@ -206,7 +220,7 @@ else:
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) + Tarayıcı Tabanlı Web Speech API
+        - **Model Altyapısı:** TensorFlow Lite / TFLite Runtime + Tarayıcı Tabanlı Web Speech API
         - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel
         - **Sosyal Fayda / Vizyon:** İşaret dili kullanan bireylerin sesli iletişim kurabilmesini sağlayan akıllı sentezleme katmanı.
         """)
