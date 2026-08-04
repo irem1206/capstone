@@ -4,6 +4,7 @@ from PIL import Image, ImageOps
 import cv2
 import os
 import urllib.request
+import tensorflow as tf
 
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
@@ -12,15 +13,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
-# --- GÜVENLİ TFLITE YÜKLEME (Sunucu Çökmesini Önler) ---
-try:
-    import tflite_runtime.interpreter as tflite
-except ImportError:
-    try:
-        import tensorflow.lite as tflite
-    except ImportError:
-        st.error("Kritik Hata: TFLite kütüphanesi yüklenemedi!")
 
 # --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
@@ -63,7 +55,7 @@ def sistem_bilesenlerini_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        interpreter = tflite.Interpreter(model_path=MODEL_YOLU)
+        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
         interpreter.allocate_tensors()
         
         if os.path.exists(ETIKET_YOLU):
