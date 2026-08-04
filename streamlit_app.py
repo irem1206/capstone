@@ -236,10 +236,4 @@ else:
         with col_analiz:
             st.info("👈 Analizi başlatmak ve tahmin sonuçlarını görmek için yukarıdan bir girdi yöntemi seçin.")
 
-    # --- TEKNİK BİLGİ KARTI ---
-    with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
-        st.markdown(f"""
-        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) Optimize Edilmiş Sinir Ağı + Web Speech API
-        - **Giriş Çözünürlüğü & Filtre:** {target_size[0]}x{target_size[1]} piksel Lanczos Yeniden Boyutlandırma
-        - **Doğruluk Güvenlik Katmanı:** %70 dinamik eşik filtresi (Thresholding) ile gürültü önleme.
-        """)
+   
