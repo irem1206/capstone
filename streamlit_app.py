@@ -1,4 +1,5 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
 from PIL import Image, ImageOps
 import cv2
@@ -12,17 +13,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
-# --- GÜVENLİ TFLITE YÜKLEME (Python 3.14 ve Cloud Uyumlu) ---
-try:
-    import tensorflow as tf
-    interpreter_class = tf.lite.Interpreter
-except ImportError:
-    try:
-        import tflite_runtime.interpreter as tflite
-        interpreter_class = tflite.Interpreter
-    except ImportError:
-        interpreter_class = None
 
 # --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
@@ -58,9 +48,6 @@ GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model
 
 @st.cache_resource(show_spinner=False)
 def model_ve_etiketleri_yukle():
-    if interpreter_class is None:
-        return None, [], "Kritik Hata: TFLite kütüphanesi ortamda bulunamadı."
-
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
@@ -68,7 +55,7 @@ def model_ve_etiketleri_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        interpreter = interpreter_class(model_path=MODEL_YOLU)
+        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
         interpreter.allocate_tensors()
         
         if os.path.exists(ETIKET_YOLU):
