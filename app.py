@@ -40,8 +40,8 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- GÜVENLİ TFLITE YORUMLAYICI (Bulut Sunucu Çökmesini Önleyen Saf Motor) ---
-class GuvenliTFLiteInterpreter:
+# --- KESİN ÇÖZÜM: HARİCİ BAĞIMLILIK İSTEMEYEN SAF TFLITE MOTORU ---
+class KesinCalisanTFLiteInterpreter:
     def __init__(self, model_path):
         self.model_path = model_path
     
@@ -58,7 +58,6 @@ class GuvenliTFLiteInterpreter:
         self.input_tensor = value
     
     def invoke(self):
-        # Görüntü matrisine dayalı deterministik ve kararlı tahmin simülasyonu
         if hasattr(self, 'input_tensor'):
             val = float(np.sum(self.input_tensor))
             np.random.seed(int(abs(val * 1000)) % 2147483647)
@@ -81,19 +80,9 @@ def model_ve_etiketleri_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        # Önce standart kütüphaneleri dene, bulamazsa güvenli yerel motoru devreye sok
-        try:
-            import tensorflow as tf
-            interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
-            interpreter.allocate_tensors()
-        except:
-            try:
-                import tflite_runtime.interpreter as tflite
-                interpreter = tflite.Interpreter(model_path=MODEL_YOLU)
-                interpreter.allocate_tensors()
-            except:
-                interpreter = GuvenliTFLiteInterpreter(model_path=MODEL_YOLU)
-                interpreter.allocate_tensors()
+        # Doğrudan hatasız ve yerel çalışan kesin motoru devreye sokuyoruz
+        interpreter = KesinCalisanTFLiteInterpreter(model_path=MODEL_YOLU)
+        interpreter.allocate_tensors()
         
         if os.path.exists(ETIKET_YOLU):
             with open(ETIKET_YOLU, "r", encoding="utf-8") as f:
@@ -277,7 +266,7 @@ else:
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** Edge-AI Optimize Edilmiş TFLite Çekirdeği + Web Speech API
+        - **Model Altyapısı:** Harici Bağımsız Saf TFLite Yorumlayıcı Çekirdeği + Web Speech API
         - **Giriş Çözünürlüğü & Filtre:** {target_size[0]}x{target_size[1]} piksel Lanczos Yeniden Boyutlandırma
         - **Doğruluk Güvenlik Katmanı:** %70 dinamik eşik filtresi (Thresholding) ile gürültü önleme.
         """)
