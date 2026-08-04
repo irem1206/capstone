@@ -1,4 +1,5 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
 from PIL import Image, ImageOps
 import cv2
@@ -40,32 +41,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- KESİN ÇÖZÜM: HARİCİ BAĞIMLILIK İSTEMEYEN SAF TFLITE MOTORU ---
-class KesinCalisanTFLiteInterpreter:
-    def __init__(self, model_path):
-        self.model_path = model_path
-    
-    def allocate_tensors(self):
-        pass
-    
-    def get_input_details(self):
-        return [{'shape': [1, 224, 224, 3], 'index': 0}]
-    
-    def get_output_details(self):
-        return [{'shape': [1, 30], 'index': 0}]
-    
-    def set_tensor(self, index, value):
-        self.input_tensor = value
-    
-    def invoke(self):
-        if hasattr(self, 'input_tensor'):
-            val = float(np.sum(self.input_tensor))
-            np.random.seed(int(abs(val * 1000)) % 2147483647)
-        self.output_tensor = np.random.dirichlet(np.ones(30), size=1)
-    
-    def get_tensor(self, index):
-        return self.output_tensor
-
 # --- MODEL VE KAYNAK YÖNETİMİ ---
 MODEL_YOLU = "model.tflite"
 ETIKET_YOLU = "labels.txt"
@@ -80,8 +55,7 @@ def model_ve_etiketleri_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        # Doğrudan hatasız ve yerel çalışan kesin motoru devreye sokuyoruz
-        interpreter = KesinCalisanTFLiteInterpreter(model_path=MODEL_YOLU)
+        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
         interpreter.allocate_tensors()
         
         if os.path.exists(ETIKET_YOLU):
@@ -97,8 +71,7 @@ def model_ve_etiketleri_yukle():
                 class_names.append(clean_name)
             return interpreter, class_names, None
         else:
-            default_labels = ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ", "H", "I", "İ", "J", "K", "L", "M", "N", "O", "Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V", "Y", "Z"]
-            return interpreter, default_labels, None
+            return None, [], "labels.txt dosyası bulunamadı."
     except Exception as e:
         return None, [], f"Hata: {e}"
 
@@ -124,7 +97,7 @@ else:
         
         index = np.argmax(prediction[0])
         confidence = float(prediction[0][index])
-        class_name = class_names[index % len(class_names)] if len(class_names) > 0 else "Bilinmeyen"
+        class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
     # --- GİRDİ YÖNTEMİ SEÇİMİ (Fotoğraf Yükle / Kamera Kullan) ---
@@ -266,7 +239,7 @@ else:
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** Harici Bağımsız Saf TFLite Yorumlayıcı Çekirdeği + Web Speech API
+        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) Optimize Edilmiş Sinir Ağı + Web Speech API
         - **Giriş Çözünürlüğü & Filtre:** {target_size[0]}x{target_size[1]} piksel Lanczos Yeniden Boyutlandırma
         - **Doğruluk Güvenlik Katmanı:** %70 dinamik eşik filtresi (Thresholding) ile gürültü önleme.
         """)
