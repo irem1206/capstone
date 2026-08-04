@@ -2,33 +2,38 @@ import streamlit as st
 import numpy as np
 import cv2
 from PIL import Image
-import h5py
+import tensorflow as tf  # TFLite yorumlayıcısı için hafif çekirdek
 
 st.title("✋ İşaret Dili Tanıma & Cümle Kurma Asistanı")
 
-# Doğrudan temiz etiket listesi
-class_names = [
-    "A Harfi", "B Harfi", "C Harfi", "Ç Harfi", "D Harfi", "E Harfi", "F Harfi", 
-    "G Harfi", "Ğ Harfi", "H Harfi", "I Harfi", "İ Harfi", "J Harfi", "K Harfi", 
-    "L Harfi", "M Harfi", "N Harfi", "O Harfi", "Ö Harfi", "P Harfi", "R Harfi", 
-    "S Harfi", "Ş Harfi", "T Harfi", "U Harfi", "Ü Harfi", "V Harfi", "Y Harfi", "Z Harfi"
-]
-
-# Modeli h5py ile güvenli yükleme kontrolü
+# Etiketleri labels.txt dosyasından dinamik oku
 @st.cache_resource
-def load_h5_weights():
+def load_labels():
     try:
-        with h5py.File('keras_model.h5', 'r') as f:
-            return True
-    except Exception as e:
-        return False
+        with open("labels.txt", "r", encoding="utf-8") as f:
+            labels = [line.strip() for line in f.readlines()]
+        return labels
+    except:
+        return []
 
-model_status = load_h5_weights()
+class_names = load_labels()
 
-if model_status:
-    st.success("✅ Model dosyası başarıyla bağlandı!")
-else:
-    st.error("⚠️ keras_model.h5 dosyası okunamadı.")
+# TFLite Modelini Yükle (Asla kasmaz, anında açılır)
+@st.cache_resource
+def load_tflite_model():
+    # Dosya adını model.tflite yaptıysan burası doğrudan görür
+    interpreter = tf.lite.Interpreter(model_path="model.tflite")
+    interpreter.allocate_tensors()
+    return interpreter
+
+try:
+    interpreter = load_tflite_model()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    model_loaded = True
+except Exception as e:
+    st.error(f"Model yüklenirken hata oluştu: {e}")
+    model_loaded = False
 
 # Oturumda biriken kelime/cümle hafızası
 if "biriken_metin" not in st.session_state:
@@ -47,30 +52,39 @@ else:
     if camera_file is not None:
         image = Image.open(camera_file)
 
-if image is not None and model_status:
+if image is not None and model_loaded:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
-    # Görüntü ön işleme
-    img_conv = image.convert('RGB')
-    img_arr = np.array(img_conv)
-    img_resized = cv2.resize(img_arr, (224, 224), interpolation=cv2.INTER_AREA)
+    # Görüntü ön işleme (224x224 ve -1 ile 1 normalize)
+    image = image.convert('RGB')
+    image = np.array(image)
+    img_resized = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
     img_array = np.asarray(img_resized, dtype=np.float32).reshape(1, 224, 224, 3)
     img_normalized = (img_array / 127.5) - 1
 
-    # Tahmin simülasyonu
-    h_index = int(np.sum(img_normalized) % len(class_names))
-    class_name = class_names[h_index]
-    confidence_score = 0.95 + (h_index % 5) * 0.01
+    # TFLite ile Gerçek Tahmin
+    interpreter.set_tensor(input_details[0]['index'], img_normalized)
+    interpreter.invoke()
+    prediction = interpreter.get_tensor(output_details[0]['index'])
+    
+    index = np.argmax(prediction[0])
+    
+    if index < len(class_names):
+        class_name = class_names[index]
+    else:
+        class_name = "Bilinmeyen"
+        
+    confidence_score = float(prediction[0][index])
 
     st.success(f"🎯 Tahmin Edilen Harf: {class_name}")
     st.info(f"📊 Güven Oranı: %{confidence_score * 100:.2f}")
 
-    harf_sade = class_name.split()[0] if " " in class_name else class_name
+    # Temiz harf ayıklama
+    harf_sade = class_name.split()[-1] if " " in class_name else class_name
 
-    # Sadece tuşa bastığında harfi ekleyen buton
     if st.button("➕ Bu Harfi Cümleye Ekle"):
         st.session_state.biriken_metin += harf_sade
-        st.success(f"'{harf_sade}' cümeleye eklendi.")
+        st.success(f"'{harf_sade}' cümleye eklendi.")
 
 # Oluşan Cümle Paneli
 st.markdown("---")
