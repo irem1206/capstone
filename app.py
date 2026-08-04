@@ -55,7 +55,6 @@ def model_ve_etiketleri_yukle():
             return None, [], f"Model indirme hatası: {e}"
     
     try:
-        # Doğrudan TensorFlow CPU üzerinden modeli yüklüyoruz
         interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
         interpreter.allocate_tensors()
         
@@ -213,7 +212,7 @@ else:
                 st.session_state.cumle_hafizasi = ""
                 st.rerun()
 
-        # --- ALT KISIM: SANAL KLAVYE / HARF SEÇİM PANELİ ---
+        # --- ALT KISIM: SANAL KLAVYE / HARF SEÇİM PANELİ (X, Q, W Hariç) ---
         st.markdown("---")
         st.subheader("⌨️ Manuel Harf Giriş Paneli (Sanal Klavye)")
         st.markdown("<p style='color: #9ca3af; font-size: 0.9em;'>Harflere tıklayarak da kelime oluşturabilirsiniz:</p>", unsafe_allow_html=True)
