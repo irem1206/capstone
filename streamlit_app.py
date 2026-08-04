@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import cv2
 from PIL import Image
-import tensorflow as tf  # TFLite yorumlayıcısı için hafif çekirdek
+import tensorflow as tf
 
 st.title("✋ İşaret Dili Tanıma & Cümle Kurma Asistanı")
 
@@ -18,10 +18,9 @@ def load_labels():
 
 class_names = load_labels()
 
-# TFLite Modelini Yükle (Asla kasmaz, anında açılır)
+# TFLite Modelini TensorFlow üzerinden yükle (Hata vermez, kasmaz)
 @st.cache_resource
 def load_tflite_model():
-    # Dosya adını model.tflite yaptıysan burası doğrudan görür
     interpreter = tf.lite.Interpreter(model_path="model.tflite")
     interpreter.allocate_tensors()
     return interpreter
