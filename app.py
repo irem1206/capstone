@@ -8,28 +8,25 @@ import urllib.request
 
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
-    page_title="İşaret Dili Akıllı Çeviri Sistemi",
-    page_icon="🤖",
+    page_title="İşaret Dili Gerçek Zamanlı Çeviri Sistemi",
+    page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- ÖZEL CSS STİLLERİ ---
+# --- KURUMSAL VE MODERN ARAYÜZ STİLLERİ ---
 st.markdown("""
     <style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        font-weight: 600;
-    }
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: 600; background-color: #2b313e; color: white; border: 1px solid #414855; }
+    .stButton>button:hover { background-color: #ff4b4b; border-color: #ff4b4b; }
+    .metric-box { background-color: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BAŞLIK VE KÜNYE ---
-st.title("🤖 Yapay Zeka Destekli İşaret Dili Çeviri ve Cümle Sentezleme Asistanı")
+# --- BAŞLIK VE PROJE KÜNYESİ ---
+st.title("🧠 Edge-AI Destekli İşaret Dili Tanıma ve Cümle Sentezleme Asistanı")
+st.markdown("<p style='color: #8b949e;'>Teachable Machine TFLite Motoru ile Gerçek Zamanlı Görsel Çıkarım Sistemi</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- MODEL VE KAYNAK YÖNETİMİ ---
@@ -38,7 +35,7 @@ ETIKET_YOLU = "labels.txt"
 GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
 
 @st.cache_resource(show_spinner=False)
-def sistem_bilesenlerini_yukle():
+def model_ve_etiketleri_yukle():
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
@@ -62,19 +59,18 @@ def sistem_bilesenlerini_yukle():
                 class_names.append(clean_name)
             return interpreter, class_names, None
         else:
-            return None, [], "Etiket dosyası (labels.txt) bulunamadı."
+            return None, [], "labels.txt dosyası bulunamadı."
     except Exception as e:
-        return None, [], f"Kritik Hata: {e}"
+        return None, [], f"Hata: {e}"
 
-interpreter, class_names, hata_mesaji = sistem_bilesenlerini_yukle()
+interpreter, class_names, hata = model_ve_etiketleri_yukle()
 
-if hata_mesaji:
-    st.error(f"Sistem Başlatılamadı: {hata_mesaji}")
+if hata:
+    st.error(hata)
 else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    input_shape = input_details[0]['shape']
-    target_size = (input_shape[1], input_shape[2])
+    target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
 
     def tahmin_uret(frame):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -91,75 +87,78 @@ else:
         class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
-    # --- ANA YERLEŞİM ---
-    col_sol, col_sag = st.columns([1.2, 1], gap="large")
+    # --- ANA YERLEŞİM (LAYOUT) ---
+    col_kamera, col_analiz = st.columns([1.3, 1], gap="large")
 
-    with col_sol:
-        st.subheader("📹 Canlı Veri Akışı (Girdi)")
-        camera_input = st.camera_input("Kamera Sensörünü Aktifleştir")
+    with col_kamera:
+        st.subheader("📹 Canlı Donanım Sensör Akışı")
+        # Fotoğraf yükleme seçenekleri tamamen kaldırıldı. Sadece kamera aktif.
+        kamera_girdisi = st.camera_input("Model için anlık kare yakalayın")
 
-    with col_sag:
-        st.subheader("📊 Model Çıkarım & Analiz Paneli")
+    with col_analiz:
+        st.subheader("📊 Derin Öğrenme Çıkarım Paneli")
         sonuc_alani = st.empty()
         guven_alani = st.empty()
 
-    if camera_input is not None:
-        bytes_data = camera_input.getvalue()
+    if kamera_girdisi is not None:
+        bytes_data = kamera_girdisi.getvalue()
         frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
         
         class_name, confidence = tahmin_uret(frame)
         harf_sade = class_name.split()[0].upper() if " " in class_name else class_name.upper()
         
-        # Sonuç Görselleştirme
+        # Profesyonel Kart Görünümü
         with sonuc_alani.container():
             st.markdown(f"""
-                <div style='background: white; padding: 20px; border-radius: 10px; border-left: 6px solid #28a745; text-align: center;'>
-                    <h3 style='margin:0; color: #333;'>Tespit Edilen Sınıf</h3>
-                    <h1 style='margin:10px 0; color: #28a745; font-size: 3em;'>{harf_sade}</h1>
-                    <p style='margin:0; color: #666; font-size: 0.9em;'>Ham Etiket: {class_name}</p>
+                <div style='background-color: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; text-align: center;'>
+                    <span style='color: #8b949e; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;'>Tahmin Edilen Sınıf</span>
+                    <h1 style='margin: 10px 0; color: #58a6ff; font-size: 4em; font-weight: 800;'>{harf_sade}</h1>
+                    <span style='color: #8b949e; font-size: 0.85em;'>Model Etiketi: {class_name}</span>
                 </div>
             """, unsafe_allow_html=True)
             
         with guven_alani.container():
-            st.markdown("**Model Güven Skoru (Confidence Score):**")
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("**Model Olasılık Dağılımı (Confidence):**")
             st.progress(confidence)
-            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
+            st.caption(f"Doğruluk Güven Skoru: %{confidence * 100:.2f}")
 
-        # --- CÜMLE SENTEZLEME ---
+        # --- CÜMLE VE METİN SENTEZLEME BİRİMİ ---
         st.markdown("---")
-        st.subheader("📝 Metin ve Cümle Sentezleme")
+        st.subheader("📝 Akıllı Cümle Sentezleme Motoru")
         
         if 'cumle_hafizasi' not in st.session_state:
             st.session_state.cumle_hafizasi = ""
             
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("➕ Karakteri Cümleye Ekle", type="primary"):
+        col_islem1, col_islem2 = st.columns(2)
+        with col_islem1:
+            if st.button("➕ Tespit Edilen Harfi Ekle", type="primary"):
                 st.session_state.cumle_hafizasi += harf_sade
-        with col_btn2:
-            if st.button("␣ Boşluk Ekle"):
+        with col_islem2:
+            if st.button("␣ Boşluk Karakteri Ekle"):
                 st.session_state.cumle_hafizasi += " "
                 st.rerun()
 
         st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
 
-        col_islem1, col_islem2 = st.columns(2)
-        with col_islem1:
-            if st.button("⬅️ Son Karakteri Sil"):
+        col_temizle1, col_temizle2 = st.columns(2)
+        with col_temizle1:
+            if st.button("⬅️ Son Karakteri Geri Al"):
                 st.session_state.cumle_hafizasi = st.session_state.cumle_hafizasi[:-1]
                 st.rerun()
-        with col_islem2:
-            if st.button("🧹 Belleği Temizle"):
+        with col_temizle2:
+            if st.button("🧹 Belleği Sıfırla"):
                 st.session_state.cumle_hafizasi = ""
                 st.rerun()
     else:
-        with col_sag:
-            st.info("💡 Analiz başlatmak için lütfen sol taraftaki kameradan bir kare yakalayın.")
+        with col_analiz:
+            st.info("👈 Analizi başlatmak ve gerçek zamanlı çıkarım almak için sol panelden kamerayı aktifleştirin.")
 
-    # --- TEKNİK BİLGİ KARTI ---
-    with st.expander("⚙️ Jüri ve Teknik Detaylar Bilgi Kartı"):
+    # --- JÜRİ İÇİN TEKNİK DOKÜMANTASYON KARTI ---
+    with st.expander("⚙️ Sistem Mimarisi ve Teknik Detaylar (Jüri Bilgi Kartı)"):
         st.markdown(f"""
-        - **Kullanılan Mimari:** TensorFlow Lite (TFLite) Optimize Edilmiş Edge-AI Modeli
-        - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel RGB Tensor Matrisi
-        - **Bellek Yönetimi:** `st.cache_resource` ile donanım katmanı önbelleklemesi aktif.
+        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) optimize edilmiş hafif sinir ağı.
+        - **Giriş Boyutlandırma:** {target_size[0]}x{target_size[1]} piksel normalize edilmiş tensör matrisi.
+        - **Performans Optimizasyonu:** `st.cache_resource` dekoratörü ile bellek katmanında önbellekleme.
+        - **Donanım Uyumluluğu:** Edge cihazlar ve bulut sunucular için düşük gecikmeli (low-latency) çıkarım.
         """)
