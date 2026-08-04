@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- GÜVENLİ TFLITE YÜKLEME KONTROLÜ ---
+# --- GÜVENLİ TFLITE YÜKLEME VE ORTAM KONTROLÜ ---
 try:
     import tensorflow as tf
     interpreter_class = tf.lite.Interpreter
@@ -22,7 +22,6 @@ except ImportError:
         import tflite_runtime.interpreter as tflite
         interpreter_class = tflite.Interpreter
     except ImportError:
-        # TensorFlow yerine harici yükleme hatasını yakala
         interpreter_class = None
 
 # --- MODERN KURUMSAL STİLLER ---
@@ -41,6 +40,7 @@ st.markdown("""
     .hero-subtitle { color: #9ca3af; font-size: 1.1em; margin-top: 10px; }
     .stButton>button { width: 100%; border-radius: 8px; font-weight: 600; background-color: #2563eb; color: white; border: none; }
     .stButton>button:hover { background-color: #1d4ed8; }
+    .key-btn>button { background-color: #374151 !important; color: white !important; font-size: 1.2em !important; font-weight: bold !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -60,7 +60,7 @@ GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model
 @st.cache_resource(show_spinner=False)
 def sistem_bilesenlerini_yukle():
     if interpreter_class is None:
-        return None, [], "Kritik Hata: TFLite yorumlayıcı kütüphanesi ortamda bulunamadı."
+        return None, [], "Kritik Hata: TFLite kütüphanesi ortamda bulunamadı. Lütfen requirements.txt dosyasına 'tensorflow' ekleyin."
 
     if not os.path.exists(MODEL_YOLU):
         try:
@@ -213,6 +213,28 @@ else:
             if st.button("🧹 Belleği Sıfırla"):
                 st.session_state.cumle_hafizasi = ""
                 st.rerun()
+
+        # --- ALT KISIM: SANAL KLAVYE / HARF SEÇİM PANELİ ---
+        st.markdown("---")
+        st.subheader("⌨️ Manuel Harf Giriş Paneli (Sanal Klavye)")
+        st.markdown("<p style='color: #9ca3af; font-size: 0.9em;'>Kameraya ek olarak harflere tıklayarak da kelime oluşturabilirsiniz:</p>", unsafe_allow_html=True)
+
+        # Türkçe Alfabe (X, Q, W hariç)
+        alfabe_satirlari = [
+            ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ"],
+            ["H", "I", "İ", "J", "K", "L", "M", "N", "O"],
+            ["Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V"],
+            ["Y", "Z"]
+        ]
+
+        for satir in alfabe_satirlari:
+            cols = st.columns(len(satir))
+            for i, harf in enumerate(satir):
+                with cols[i]:
+                    if st.button(harf, key=f"klavye_{harf}"):
+                        st.session_state.cumle_hafizasi += harf
+                        st.rerun()
+
     else:
         with col_analiz:
             st.info("👈 Analizi başlatmak için sol panelden kamerayı aktifleştirin.")
@@ -220,7 +242,7 @@ else:
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** TensorFlow Lite / TFLite Runtime + Tarayıcı Tabanlı Web Speech API
+        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) + Tarayıcı Tabanlı Web Speech API
         - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel
         - **Sosyal Fayda / Vizyon:** İşaret dili kullanan bireylerin sesli iletişim kurabilmesini sağlayan akıllı sentezleme katmanı.
         """)
