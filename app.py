@@ -5,8 +5,6 @@ from PIL import Image, ImageOps
 import cv2
 import os
 import urllib.request
-from gtts import gTTS
-import base64
 
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
@@ -39,7 +37,7 @@ st.markdown("""
 st.markdown("""
     <div class="hero-container">
         <p class="hero-title">🤟 Yapay Zeka Destekli Türk İşaret Dili ve Sesli İletişim Asistanı</p>
-        <p class="hero-subtitle">Edge-AI Görsel Tanıma + gTTS Ses Sentezleme Motoru</p>
+        <p class="hero-subtitle">Edge-AI Görsel Tanıma + Web Speech API Ses Sentezleme Motoru</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -171,26 +169,26 @@ else:
 
         st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
 
-        # --- YENİ ÖZELLİK: SESLİ OKUMA (TEXT-TO-SPEECH) ---
-        if st.button("🔊 Cümleyi Sesli Oku (Text-to-Speech)"):
-            if st.session_state.cumle_hafizasi.strip():
-                try:
-                    # gTTS ile Türkçe ses dosyası oluştur
-                    tts = gTTS(text=st.session_state.cumle_hafizasi, lang='tr', slow=False)
-                    ses_dosyasi = "cevirim_ses.mp3"
-                    tts.save(ses_dosyasi)
-                    
-                    # Ses dosyasını HTML5 audio elementiyle çal
-                    audio_file = open(ses_dosyasi, 'rb')
-                    audio_bytes = audio_file.read()
-                    audio_base64 = base64.b64encode(audio_bytes).decode()
-                    audio_html = f'<audio autoplay controls><source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3"></audio>'
-                    st.markdown(audio_html, unsafe_allow_html=True)
-                    st.success("Sesli sentezleme başarıyla gerçekleştirildi.")
-                except Exception as e:
-                    st.error(f"Ses sentezlenirken hata oluştu: {e}")
-            else:
-                st.warning("Okunacak metin boş!")
+        # --- YEREL TARAYICI SESLİ OKUMA (WEB SPEECH API) ---
+        metin_js = st.session_state.cumle_hafizasi.replace("'", "\\'")
+        ses_butonu_html = f"""
+        <button onclick="
+            const utterance = new SpeechSynthesisUtterance('{metin_js}');
+            utterance.lang = 'tr-TR';
+            window.speechSynthesis.speak(utterance);
+        " style="
+            width: 100%;
+            background-color: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        ">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>
+        """
+        st.markdown(ses_butonu_html, unsafe_allow_html=True)
 
         col_temizle1, col_temizle2 = st.columns(2)
         with col_temizle1:
@@ -208,7 +206,7 @@ else:
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) + gTTS (Google Text-to-Speech) Entegrasyonu
+        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) + Tarayıcı Tabanlı Web Speech API
         - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel
         - **Sosyal Fayda / Vizyon:** İşaret dili kullanan bireylerin sesli iletişim kurabilmesini sağlayan akıllı sentezleme katmanı.
         """)
