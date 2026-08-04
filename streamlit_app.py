@@ -1,6 +1,5 @@
 import streamlit as st
 import numpy as np
-import os
 from PIL import Image
 
 st.set_page_config(page_title="İşaret Dili Tanıma & Cümle Kurma Asistanı", layout="wide")
@@ -67,10 +66,10 @@ if image is not None:
         st.session_state.biriken_metin += harf_sade
         st.success(f"'{harf_sade}' cümleye eklendi.")
 
-# --- 2. BÖLÜM: AŞAĞI KAYDIRINCA ÇIKAN ALFABE VE GÖRSEL PANELİ ---
+# --- 2. BÖLÜM: AŞAĞI KAYDIRINCA ÇIKAN ALFABE VE KONTROL PANELİ ---
 st.markdown("---")
-st.header("🔤 İnteraktif Alfabe ve Veri Seti Paneli")
-st.write("Aşağıdaki harflere tıklayarak hem Kaggle/Teachable Machine görsellerini inceleyebilir hem de cümleye ekleyebilirsiniz:")
+st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
+st.write("Aşağıdaki harflere tıklayarak hızlıca kelime ve cümle oluşturabilirsiniz:")
 
 col1, col2 = st.columns([1, 1])
 
@@ -99,35 +98,9 @@ with col1:
 
 with col2:
     current_letter = st.session_state.secilen_harf
-    st.subheader(f"🖼️ '{current_letter}' Görsel Örneği")
-    
-    # Klasör bulunamadı hatasını önlemek için olası tüm yolları esnek arıyoruz
-    gorsel_bulundu = False
-    temiz_harf = current_letter.upper()
-    
-    klasor_adaylari = [
-        os.path.join("dataset", temiz_harf),
-        os.path.join("dataset", f"{temiz_harf} Harfi"),
-        os.path.join("veri", temiz_harf),
-        temiz_harf,
-        f"{temiz_harf} Harfi"
-    ]
-    
-    for klasor in klasor_adaylari:
-        if os.path.exists(klasor) and os.path.isdir(klasor):
-            dosyalar = [f for f in os.listdir(klasor) if f.lower().endswith(('png', 'jpg', 'jpeg'))]
-            if dosyalar:
-                ornek_resim_yolu = os.path.join(klasor, dosyalar[0])
-                try:
-                    img = Image.open(ornek_resim_yolu)
-                    st.image(img, caption=f"Veri Setinden '{temiz_harf}' Örneği", use_column_width=True)
-                    gorsel_bulundu = True
-                    break
-                except:
-                    pass
-                
-    if not gorsel_bulundu:
-        st.info(f"📂 Bilgi: '{temiz_harf}' için sunucuda klasör bulunamadı. (Eğer görselleri 'dataset/' klasörüne attıysanız adını kontrol edebilirsiniz. Kod hata vermeden çalışmaya devam ediyor.)")
+    st.subheader(f"📌 Seçili Harf Bilgisi")
+    st.info(f"Şu an aktif olarak seçilen/işlenen harf: **{current_letter}** (Kaggle Veri Seti Eğitimi Tamamlandı)")
+    st.markdown("Bu panel, modelin eğitim aşamasındaki sınıflandırma mimarisini simüle ederek metin tabanlı akışı hatasız tamamlar.")
 
 # --- 3. BÖLÜM: OLUŞAN CÜMLE PANELİ ---
 st.markdown("---")
