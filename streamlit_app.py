@@ -2,7 +2,12 @@ import streamlit as st
 import numpy as np
 import os
 from PIL import Image
-import tensorflow as tf
+
+# TensorFlow yerine sunucunun rahatça çalıştırabileceği tflite_runtime kullanıyoruz
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    import tensorflow.lite as tflite
 
 st.set_page_config(page_title="İşaret Dili Tanıma & Cümle Kurma Asistanı", layout="wide")
 
@@ -12,7 +17,7 @@ st.title("✋ İşaret Dili Tanıma & Cümle Kurma Asistanı")
 @st.cache_resource
 def load_model_and_labels():
     try:
-        interpreter = tf.lite.Interpreter(model_path="model.tflite")
+        interpreter = tflite.Interpreter(model_path="model.tflite")
         interpreter.allocate_tensors()
         
         with open("labels.txt", "r", encoding="utf-8") as f:
@@ -30,14 +35,14 @@ def load_model_and_labels():
     except Exception as e:
         return None, []
 
-interpreter, class_names = load_labels()
+interpreter, class_names = load_model_and_labels()
 
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
 if "secilen_harf" not in st.session_state:
     st.session_state.secilen_harf = "A"
 
-# --- 1. BÖLÜM: GERÇEK TFLITE MODELİ İLE TAHMİN ALANI ---
+# --- 1. BÖLÜM: MODEL İLE TAHMİN ALANI ---
 upload_type = st.radio("Girdi türünü seçin:", ("Fotoğraf Yükle", "Kamera Kullan"))
 
 image = None
@@ -54,7 +59,6 @@ else:
 if image is not None and interpreter is not None:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
-    # Modelin beklediği standart boyut (224x224) ve normalizasyon
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
     
