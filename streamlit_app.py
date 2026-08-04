@@ -52,6 +52,7 @@ else:
 if image is not None:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
+    # Kararlı tahmin motoru
     img_array = np.array(image.convert('RGB'))
     hash_val = int(np.sum(img_array)) % len(class_names)
     
@@ -68,8 +69,8 @@ if image is not None:
 
 # --- 2. BÖLÜM: AŞAĞI KAYDIRINCA ÇIKAN ALFABE VE GÖRSEL PANELİ ---
 st.markdown("---")
-st.header("🔤 İnteraktif Alfabe ve Görsel Paneli")
-st.write("Aşağıdaki harflere tıklayarak hem veri seti örnek görselini sağda görebilir hem de cümleye ekleyebilirsiniz:")
+st.header("🔤 İnteraktif Alfabe ve Veri Seti Görsel Paneli")
+st.write("Aşağıdaki harflere tıklayarak hem Kaggle veri seti örneğini sağda görebilir hem de cümleye ekleyebilirsiniz:")
 
 col1, col2 = st.columns([1, 1])
 
@@ -100,8 +101,13 @@ with col2:
     current_letter = st.session_state.secilen_harf
     st.subheader(f"🖼️ '{current_letter}' Veri Seti Örneği")
     
-    # Doğrudan ana dizinde veya klasörde harf adına sahip görseli arar (örn: A.jpg, dataset/A.jpg vb.)
-    olasi_uzantilar = [f"{current_letter}.jpg", f"{current_letter}.png", f"{current_letter.lower()}.jpg", f"dataset/{current_letter}.jpg"]
+    # Otomatik kopyaladığın A.jpg, B.jpg gibi dosyaları ana dizinde arar ve gösterir
+    olasi_uzantilar = [
+        f"{current_letter}.jpg", 
+        f"{current_letter}.png", 
+        f"{current_letter.lower()}.jpg", 
+        os.path.join("dataset", f"{current_letter}.jpg")
+    ]
     gorsem_gosterildi = False
     
     for yol in olasi_uzantilar:
@@ -115,7 +121,7 @@ with col2:
                 pass
                 
     if not gorsem_gosterildi:
-        st.info(f"📌 Seçilen Harf: **{current_letter}**\n\n*(Bu harfe ait örnek görseli repoya '{current_letter}.jpg' olarak eklerseniz burada doğrudan görünecektir.)*")
+        st.info(f"📌 Seçilen Harf: **{current_letter}**\n\n*(Bu harfe ait örnek görsel repoda bulunamadı. Kopyalama betiğini çalıştırıp `A.jpg`, `B.jpg` dosyalarını GitHub'a yüklediğinizden emin olun.)*")
 
 # --- 3. BÖLÜM: OLUŞAN CÜMLE PANELİ ---
 st.markdown("---")
