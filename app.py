@@ -14,18 +14,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ÖZEL CSS STİLLERİ (Kurumsal & Profesyonel Görünüm) ---
+# --- ÖZEL CSS STİLLERİ ---
 st.markdown("""
     <style>
     .main {
         background-color: #f8f9fa;
-    }
-    .metric-card {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        text-align: center;
     }
     .stButton>button {
         width: 100%;
@@ -35,7 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- BAŞLIK VE PROJE KÜNYESİ ---
+# --- BAŞLIK VE KÜNYE ---
 st.title("🤖 Yapay Zeka Destekli İşaret Dili Çeviri ve Cümle Sentezleme Asistanı")
 st.markdown("---")
 
@@ -46,7 +39,6 @@ GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model
 
 @st.cache_resource(show_spinner=False)
 def sistem_bilesenlerini_yukle():
-    """Modeli ve etiketleri bellenimde önbelleğe alarak optimize eder."""
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
@@ -72,7 +64,7 @@ def sistem_bilesenlerini_yukle():
         else:
             return None, [], "Etiket dosyası (labels.txt) bulunamadı."
     except Exception as e:
-        return None, [], fKanal Hatası: {e}
+        return None, [], f"Kritik Hata: {e}"
 
 interpreter, class_names, hata_mesaji = sistem_bilesenlerini_yukle()
 
@@ -85,7 +77,6 @@ else:
     target_size = (input_shape[1], input_shape[2])
 
     def tahmin_uret(frame):
-        """Görüntüyü modele uygun forma getiripinference çalıştırır."""
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img = img_pil.resize(target_size)
         img_array = np.asarray(img, dtype=np.float32) / 255.0
@@ -100,7 +91,7 @@ else:
         class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
-    # --- ANA KONTROL PANELİ (LAYOUT) ---
+    # --- ANA YERLEŞİM ---
     col_sol, col_sag = st.columns([1.2, 1], gap="large")
 
     with col_sol:
@@ -134,7 +125,7 @@ else:
             st.progress(confidence)
             st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
 
-        # --- METİN VE CÜMLE SENTEZLEME MOTORU ---
+        # --- CÜMLE SENTEZLEME ---
         st.markdown("---")
         st.subheader("📝 Metin ve Cümle Sentezleme")
         
@@ -165,11 +156,10 @@ else:
         with col_sag:
             st.info("💡 Analiz başlatmak için lütfen sol taraftaki kameradan bir kare yakalayın.")
 
-    # --- JÜRİ İÇİN TEKNİK BİLGİ SEKMESİ (Sistem Mimarisi) ---
+    # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri ve Teknik Detaylar Bilgi Kartı"):
         st.markdown(f"""
         - **Kullanılan Mimari:** TensorFlow Lite (TFLite) Optimize Edilmiş Edge-AI Modeli
         - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel RGB Tensor Matrisi
         - **Bellek Yönetimi:** `st.cache_resource` ile donanım katmanı önbelleklemesi aktif.
-        - **Çıkarım Süresi (Inference Latency):** Düşük gecikmeli CPU/XNNPACK donanım ivmelenmesi.
         """)
