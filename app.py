@@ -1,5 +1,4 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 from PIL import Image, ImageOps
 import cv2
@@ -13,6 +12,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# --- GÜVENLİ TFLITE / TF YÜKLEME ---
+try:
+    import tensorflow as tf
+except ImportError:
+    try:
+        import tflite_runtime.interpreter as tf
+    except ImportError:
+        st.error("Kritik Hata: Model çalıştırma altyapısı yüklenemedi.")
 
 # --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
@@ -41,13 +49,13 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- MODEL VE KAYNAK YÖNETİMİ ---
+# --- MODEL VE ETİKET YÖNETİMİ ---
 MODEL_YOLU = "model.tflite"
 ETIKET_YOLU = "labels.txt"
 GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
 
 @st.cache_resource(show_spinner=False)
-def model_ve_etiketleri_yukle():
+def sistem_bilesenlerini_yukle():
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
@@ -62,20 +70,20 @@ def model_ve_etiketleri_yukle():
             with open(ETIKET_YOLU, "r", encoding="utf-8") as f:
                 raw_labels = [line.strip() for line in f.readlines()]
             
-            class_names = []
+            cleaned_labels = []
             for label in raw_labels:
                 parts = label.split()
                 if parts and parts[0].isdigit():
                     parts = parts[1:]
                 clean_name = " ".join(parts) if parts else label
-                class_names.append(clean_name)
-            return interpreter, class_names, None
+                cleaned_labels.append(clean_name)
+            return interpreter, cleaned_labels, None
         else:
             return None, [], "labels.txt dosyası bulunamadı."
     except Exception as e:
         return None, [], f"Hata: {e}"
 
-interpreter, class_names, hata = model_ve_etiketleri_yukle()
+interpreter, class_names, hata = sistem_bilesenlerini_yukle()
 
 if hata:
     st.error(hata)
