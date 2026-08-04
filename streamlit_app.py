@@ -1,5 +1,6 @@
 import streamlit as st
 import numpy as np
+import os
 from PIL import Image
 
 st.set_page_config(page_title="İşaret Dili Tanıma & Cümle Kurma Asistanı", layout="wide")
@@ -51,7 +52,6 @@ else:
 if image is not None:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
-    # Kararlı tahmin motoru
     img_array = np.array(image.convert('RGB'))
     hash_val = int(np.sum(img_array)) % len(class_names)
     
@@ -66,10 +66,10 @@ if image is not None:
         st.session_state.biriken_metin += harf_sade
         st.success(f"'{harf_sade}' cümleye eklendi.")
 
-# --- 2. BÖLÜM: AŞAĞI KAYDIRINCA ÇIKAN ALFABE VE KONTROL PANELİ ---
+# --- 2. BÖLÜM: AŞAĞI KAYDIRINCA ÇIKAN ALFABE VE GÖRSEL PANELİ ---
 st.markdown("---")
-st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
-st.write("Aşağıdaki harflere tıklayarak hızlıca kelime ve cümle oluşturabilirsiniz:")
+st.header("🔤 İnteraktif Alfabe ve Görsel Paneli")
+st.write("Aşağıdaki harflere tıklayarak hem veri seti örnek görselini sağda görebilir hem de cümleye ekleyebilirsiniz:")
 
 col1, col2 = st.columns([1, 1])
 
@@ -98,9 +98,24 @@ with col1:
 
 with col2:
     current_letter = st.session_state.secilen_harf
-    st.subheader(f"📌 Seçili Harf Bilgisi")
-    st.info(f"Şu an aktif olarak seçilen/işlenen harf: **{current_letter}** (Kaggle Veri Seti Eğitimi Tamamlandı)")
-    st.markdown("Bu panel, modelin eğitim aşamasındaki sınıflandırma mimarisini simüle ederek metin tabanlı akışı hatasız tamamlar.")
+    st.subheader(f"🖼️ '{current_letter}' Veri Seti Örneği")
+    
+    # Doğrudan ana dizinde veya klasörde harf adına sahip görseli arar (örn: A.jpg, dataset/A.jpg vb.)
+    olasi_uzantilar = [f"{current_letter}.jpg", f"{current_letter}.png", f"{current_letter.lower()}.jpg", f"dataset/{current_letter}.jpg"]
+    gorsem_gosterildi = False
+    
+    for yol in olasi_uzantilar:
+        if os.path.exists(yol):
+            try:
+                img_ornek = Image.open(yol)
+                st.image(img_ornek, caption=f"Kaggle Veri Seti Örneği: {current_letter} Harfi", use_column_width=True)
+                gorsem_gosterildi = True
+                break
+            except:
+                pass
+                
+    if not gorsem_gosterildi:
+        st.info(f"📌 Seçilen Harf: **{current_letter}**\n\n*(Bu harfe ait örnek görseli repoya '{current_letter}.jpg' olarak eklerseniz burada doğrudan görünecektir.)*")
 
 # --- 3. BÖLÜM: OLUŞAN CÜMLE PANELİ ---
 st.markdown("---")
