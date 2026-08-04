@@ -5,16 +5,18 @@ from PIL import Image, ImageOps
 import cv2
 import os
 import urllib.request
+from gtts import gTTS
+import base64
 
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
-    page_title="İşaret Dili Akıllı Çeviri ve Sentezleme Sistemi",
+    page_title="İşaret Dili Akıllı Çeviri ve Sesli Sentezleme",
     page_icon="🤟",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- MODERN KURUMSAL STİLLER (ÜST KISIM VE ARAYÜZ) ---
+# --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
     <style>
     .main { background-color: #0b0f19; color: #f3f4f6; }
@@ -33,11 +35,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- PROFESYONEL ÜST KISIM (HERO SECTION) ---
+# --- ÜST KISIM (HERO SECTION) ---
 st.markdown("""
     <div class="hero-container">
-        <p class="hero-title">🤟 Yapay Zeka Destekli Türk İşaret Dili Çeviri Asistanı</p>
-        <p class="hero-subtitle">Edge-AI Tabanlı Gerçek Zamanlı Görsel Tanıma ve Dinamik Cümle Sentezleme Motoru</p>
+        <p class="hero-title">🤟 Yapay Zeka Destekli Türk İşaret Dili ve Sesli İletişim Asistanı</p>
+        <p class="hero-subtitle">Edge-AI Görsel Tanıma + gTTS Ses Sentezleme Motoru</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -85,7 +87,6 @@ else:
     target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
 
     def tahmin_uret(frame):
-        # Görüntüyü iyileştirme ve model boyutuna getirme
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
@@ -101,12 +102,12 @@ else:
         class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
-    # --- ANA YERLEŞİM (LAYOUT) ---
+    # --- ANA YERLEŞİM ---
     col_kamera, col_analiz = st.columns([1.2, 1], gap="large")
 
     with col_kamera:
         st.subheader("📹 Canlı Donanım Akışı")
-        kamera_girdisi = st.camera_input("El işaretinizi kameraya gösterin ve kare yakalayın")
+        kamera_girdisi = st.camera_input("El işaretinizi gösterin ve kare yakalayın")
 
     with col_analiz:
         st.subheader("📊 Model Çıkarım & Doğruluk Filtresi")
@@ -120,8 +121,7 @@ else:
         class_name, confidence = tahmin_uret(frame)
         harf_sade = class_name.split()[0].upper() if " " in class_name else class_name.upper()
         
-        # --- KRİTİK DOĞRULUK FİLTRESİ (%70 Eşiği) ---
-        GUVEN_ESIGI = 0.70  # %70'den azsa model yanıltıcı kabul edilir
+        GUVEN_ESIGI = 0.70  
         
         if confidence < GUVEN_ESIGI:
             with sonuc_alani.container():
@@ -130,7 +130,6 @@ else:
                         <h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven Skoru</h3>
                         <h2 style='margin:10px 0; color: #f87171;'>Model Kararsız Kaldı</h2>
                         <p style='margin:0; color: #9ca3af;'>Tespit Edilen: {harf_sade} (Güven: %{confidence * 100:.1f})</p>
-                        <p style='margin-top:5px; color: #fbbf24; font-size:0.85em;'>Lütfen elinizi daha net konumlandırıp tekrar çekim yapın.</p>
                     </div>
                 """, unsafe_allow_html=True)
             harf_eklenebilir = False
@@ -149,11 +148,11 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("**Model Olasılık Güven Skoru:**")
             st.progress(confidence)
-            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f} (Eşik Sınırı: %{int(GUVEN_ESIGI*100)})")
+            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
 
-        # --- CÜMLE VE METİN SENTEZLEME BİRİMİ ---
+        # --- CÜMLE VE SES SENTEZLEME BİRİMİ ---
         st.markdown("---")
-        st.subheader("📝 Dinamik Cümle Sentezleme Motoru")
+        st.subheader("📝 Dinamik Cümle ve Ses Sentezleme Motoru")
         
         if 'cumle_hafizasi' not in st.session_state:
             st.session_state.cumle_hafizasi = ""
@@ -164,13 +163,34 @@ else:
                 if harf_eklenebilir:
                     st.session_state.cumle_hafizasi += harf_sade
                 else:
-                    st.warning("Model güven eşiğinin altında olduğu için bu harf eklenmedi!")
+                    st.warning("Güven eşiğinin altında olduğu için eklenmedi!")
         with col_islem2:
             if st.button("␣ Boşluk Karakteri Ekle"):
                 st.session_state.cumle_hafizasi += " "
                 st.rerun()
 
         st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
+
+        # --- YENİ ÖZELLİK: SESLİ OKUMA (TEXT-TO-SPEECH) ---
+        if st.button("🔊 Cümleyi Sesli Oku (Text-to-Speech)"):
+            if st.session_state.cumle_hafizasi.strip():
+                try:
+                    # gTTS ile Türkçe ses dosyası oluştur
+                    tts = gTTS(text=st.session_state.cumle_hafizasi, lang='tr', slow=False)
+                    ses_dosyasi = "cevirim_ses.mp3"
+                    tts.save(ses_dosyasi)
+                    
+                    # Ses dosyasını HTML5 audio elementiyle çal
+                    audio_file = open(ses_dosyasi, 'rb')
+                    audio_bytes = audio_file.read()
+                    audio_base64 = base64.b64encode(audio_bytes).decode()
+                    audio_html = f'<audio autoplay controls><source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3"></audio>'
+                    st.markdown(audio_html, unsafe_allow_html=True)
+                    st.success("Sesli sentezleme başarıyla gerçekleştirildi.")
+                except Exception as e:
+                    st.error(f"Ses sentezlenirken hata oluştu: {e}")
+            else:
+                st.warning("Okunacak metin boş!")
 
         col_temizle1, col_temizle2 = st.columns(2)
         with col_temizle1:
@@ -183,12 +203,12 @@ else:
                 st.rerun()
     else:
         with col_analiz:
-            st.info("👈 Doğru analiz yapabilmek ve tahmin sonuçlarını görmek için sol panelden kamerayı aktifleştirin.")
+            st.info("👈 Analizi başlatmak için sol panelden kamerayı aktifleştirin.")
 
     # --- TEKNİK BİLGİ KARTI ---
     with st.expander("⚙️ Jüri & Sistem Mimarisi Detayları"):
         st.markdown(f"""
-        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) Optimize Edilmiş Sinir Ağı
-        - **Giriş Çözünürlüğü & Filtre:** {target_size[0]}x{target_size[1]} piksel Lanczos Yeniden Boyutlandırma
-        - **Doğruluk Güvenlik Katmanı:** %70 dinamik eşik filtresi (Thresholding) ile gürültü önleme.
+        - **Model Altyapısı:** TensorFlow Lite (`.tflite`) + gTTS (Google Text-to-Speech) Entegrasyonu
+        - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel
+        - **Sosyal Fayda / Vizyon:** İşaret dili kullanan bireylerin sesli iletişim kurabilmesini sağlayan akıllı sentezleme katmanı.
         """)
