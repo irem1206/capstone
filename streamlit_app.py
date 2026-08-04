@@ -50,7 +50,6 @@ else:
 if image is not None:
     st.image(image, caption="İşlenen Görüntü", use_column_width=True)
     
-    # Görüntü özelliklerinden kararlı indeks türetme (Bulut sunucularını yormayan kusursuz yöntem)
     img_array = np.array(image.convert('RGB'))
     index = int(np.sum(img_array)) % len(class_names)
     
@@ -62,18 +61,18 @@ if image is not None:
 
     if st.button("➕ Bu Harfi Cümleye Ekle"):
         harf_sade = class_name.split()[0] if " " in class_name else class_name
-        st.session_state.biriken_metin += harf_sade
+        st.session_state.biriken_metin += harf_sade.upper()
         st.success(f"'{harf_sade}' cümleye eklendi.")
 
-# --- 2. BÖLÜM: İNTERAKTİF ALFABE VE GÖRSEL PANELİ ---
+# --- 2. BÖLÜM: İNTERAKTİF ALFABE VE CÜMLE PANELİ ---
 st.markdown("---")
-st.header("🔤 İnteraktif Alfabe ve Veri Seti Görsel Paneli")
-st.write("Aşağıdaki harflere tıklayarak hem Kaggle veri seti örneğini sağda görebilir hem de cümleye ekleyebilirsiniz:")
+st.header("🔤 İnteraktif Alfabe ve Kelime Oluşturma Paneli")
 
 col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("Harf Seçim Paneli")
+    st.write("Harflere tıklayarak kelime oluşturun:")
     harfler = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
     
     cols = st.columns(6)
@@ -96,23 +95,49 @@ with col1:
             st.rerun()
 
 with col2:
+    st.subheader("📝 Oluşan Cümle / Kelime Paneli")
+    st.session_state.biriken_metin = st.text_input("Metni Buradan Düzenleyebilirsin:", value=st.session_state.biriken_metin)
+    
     current_letter = st.session_state.secilen_harf
-    st.subheader(f"🖼️ '{current_letter}' Veri Seti Örneği")
+    st.markdown(f"**Seçilen Tekil Harf Örneği ({current_letter}):**")
     
     dosya_adi = f"{current_letter}.png"
     if not os.path.exists(dosya_adi):
         dosya_adi = f"{current_letter}.jpg"
         
     if os.path.exists(dosya_adi):
-        try:
-            img_ornek = Image.open(dosya_adi)
-            st.image(img_ornek, caption=f"Kaggle Veri Seti Örneği: {current_letter} Harfi", use_column_width=True)
-        except:
-            st.info(f"📌 Seçilen Harf: **{current_letter}**")
+        img_ornek = Image.open(dosya_adi)
+        st.image(img_ornek, width=150, caption=f"{current_letter} Harfi")
     else:
-        st.info(f"📌 Seçilen Harf: **{current_letter}**")
+        st.info(f"📌 '{current_letter}' için görsel bulunamadı.")
 
-# --- 3. BÖLÜM: OLUŞAN CÜMLE PANELİ ---
+# --- 3. BÖLÜM: OLUŞAN KELİMENİN İŞARET DİLİ GÖRSELLERİ (YAN YANA) ---
 st.markdown("---")
-st.subheader("📝 Oluşan Cümle / Kelime Paneli")
-st.session_state.biriken_metin = st.text_input("Metni Buradan Düzenleyebilirsin:", value=st.session_state.biriken_metin)
+st.header("🤟 Oluşan Kelimenin İşaret Dili Karşılığı (Görsel Dizi)")
+
+metin = st.session_state.biriken_metin.upper().strip()
+
+if metin:
+    st.write(f"Şu anki kelime/cümle: **{metin}**")
+    
+    # Harfleri yan yana sütunlar halinde dizelim
+    kelime_harfleri = [h for h in metin if h.isalpha()]
+    
+    if kelime_harfleri:
+        cols = st.columns(min(len(kelime_harfleri), 6)) # En fazla 6 sütun yan yana
+        for idx, harf in enumerate(kelime_harfleri):
+            col_index = idx % 6
+            with cols[col_index]:
+                resim_yolu = f"{harf}.png"
+                if not os.path.exists(resim_yolu):
+                    resim_yolu = f"{harf}.jpg"
+                
+                if os.path.exists(resim_yolu):
+                    img = Image.open(resim_yolu)
+                    st.image(img, use_column_width=True, caption=f"Harf: {harf}")
+                else:
+                    st.warning(f"'{harf}' görseli yok")
+    else:
+        st.info("Yazdığınız metinde görseli gösterilecek harf bulunmuyor.")
+else:
+    st.info("💡 Yukarıdan harflere tıklayarak veya metin girerek kelime oluşturun, işaret dili görselleri burada yan yana listelensin.")
