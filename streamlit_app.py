@@ -72,7 +72,8 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("Harf Seçim Paneli")
-    st.write("Harflere tıklayarak kelime oluşturun:")
+    st.write("Harflere veya boşluğa tıklayarak cümle kurun:")
+    
     harfler = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
     
     cols = st.columns(6)
@@ -84,13 +85,19 @@ with col1:
                 st.rerun()
 
     st.markdown("")
+    # Boşluk Ekle Butonu
+    if st.button("␣ Boşluk Ekle", use_container_width=True, type="secondary"):
+        st.session_state.biriken_metin += " "
+        st.rerun()
+
+    st.markdown("")
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("🧹 Tümünü Temizle", use_container_width=True):
             st.session_state.biriken_metin = ""
             st.rerun()
     with col_b:
-        if st.button("⬅️ Son Harfi Sil", use_container_width=True):
+        if st.button("⬅️ Son Karakteri Sil", use_container_width=True):
             st.session_state.biriken_metin = st.session_state.biriken_metin[:-1]
             st.rerun()
 
@@ -111,33 +118,36 @@ with col2:
     else:
         st.info(f"📌 '{current_letter}' için görsel bulunamadı.")
 
-# --- 3. BÖLÜM: OLUŞAN KELİMENİN İŞARET DİLİ GÖRSELLERİ (YAN YANA) ---
+# --- 3. BÖLÜM: KELİME KELİME İŞARET DİLİ GÖRSELLERİ (ALT ALTA VE YAN YANA) ---
 st.markdown("---")
-st.header("🤟 Oluşan Kelimenin İşaret Dili Karşılığı (Görsel Dizi)")
+st.header("🤟 Cümlenin İşaret Dili Görsel Karşılığı")
 
-metin = st.session_state.biriken_metin.upper().strip()
+metin = st.session_state.biriken_metin.upper()
 
-if metin:
-    st.write(f"Şu anki kelime/cümle: **{metin}**")
+if metin.strip():
+    # Kelimeleri boşluk karakterine göre ayırıyoruz (1. kelime, 2. kelime vb.)
+    kelimeler = metin.split(' ')
     
-    # Harfleri yan yana sütunlar halinde dizelim
-    kelime_harfleri = [h for h in metin if h.isalpha()]
-    
-    if kelime_harfleri:
-        cols = st.columns(min(len(kelime_harfleri), 6)) # En fazla 6 sütun yan yana
-        for idx, harf in enumerate(kelime_harfleri):
-            col_index = idx % 6
-            with cols[col_index]:
-                resim_yolu = f"{harf}.png"
-                if not os.path.exists(resim_yolu):
-                    resim_yolu = f"{harf}.jpg"
-                
-                if os.path.exists(resim_yolu):
-                    img = Image.open(resim_yolu)
-                    st.image(img, use_column_width=True, caption=f"Harf: {harf}")
-                else:
-                    st.warning(f"'{harf}' görseli yok")
-    else:
-        st.info("Yazdığınız metinde görseli gösterilecek harf bulunmuyor.")
+    for kelime_idx, kelime in enumerate(kelimeler):
+        if kelime:
+            # 2. kelimeyi veya diğerlerini net şekilde belirtmek için başlık atıyoruz
+            st.markdown(f"### 🔹 {kelime_idx + 1}. Kelime: **{kelime}**")
+            
+            harfler = [h for h in kelime if h.isalpha()]
+            if harfler:
+                cols = st.columns(min(len(harfler), 6))
+                for idx, harf in enumerate(harfler):
+                    col_index = idx % 6
+                    with cols[col_index]:
+                        resim_yolu = f"{harf}.png"
+                        if not os.path.exists(resim_yolu):
+                            resim_yolu = f"{harf}.jpg"
+                        
+                        if os.path.exists(resim_yolu):
+                            img = Image.open(resim_yolu)
+                            st.image(img, use_column_width=True, caption=f"{harf}")
+                        else:
+                            st.warning(f"'{harf}' yok")
+            st.markdown("---")
 else:
-    st.info("💡 Yukarıdan harflere tıklayarak veya metin girerek kelime oluşturun, işaret dili görselleri burada yan yana listelensin.")
+    st.info("💡 Yukarıdan harflere ve boşluk tuşuna basarak kelimeler oluşturun, 1. ve 2. kelimenin işaret dili görselleri ayrı ayrı alt alta sıralansın.")
