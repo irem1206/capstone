@@ -2,4 +2,3 @@ streamlit
 tensorflow
 numpy
 Pillow
-gTTS
