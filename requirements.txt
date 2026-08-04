@@ -2,4 +2,4 @@ streamlit
 numpy
 pillow
 opencv-python-headless
-h5py
+tflite-runtime
