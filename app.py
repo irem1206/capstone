@@ -4,7 +4,6 @@ from PIL import Image, ImageOps
 import cv2
 import os
 import urllib.request
-
 # --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
     page_title="İşaret Dili Akıllı Çeviri ve Sesli Sentezleme",
@@ -20,7 +19,7 @@ except ImportError:
     try:
         import tflite_runtime.interpreter as tf
     except ImportError:
-        st.error("Kritik Hata: Model çalıştırma altyapısı yüklenemedi.")
+        pass
 
 # --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
