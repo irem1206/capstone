@@ -86,39 +86,56 @@ if hata:
 else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
+    
+    # Model giriş parametreleri
+    input_index = input_details[0]['index']
+    input_shape = input_details[0]['shape'] # Genellikle [1, 224, 224, 3]
     input_dtype = input_details[0]['dtype']
+    target_size = (input_shape[1], input_shape[2])
 
     def tahmin_uret(frame):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
-        # Modelin beklediği veri tipine (dtype) göre otomatik matris dönüşümü (Float32 veya Int8)
+        # Modelin veri tipine göre pikselleri biçimlendir
         if input_dtype == np.float32:
             img_array = np.asarray(img, dtype=np.float32) / 255.0
+        elif input_dtype == np.int8 or input_dtype == np.uint8:
+            # Quantized modeller için 0-255 aralığı veya -128/+127 dönüşümü
+            img_array = np.asarray(img, dtype=np.float32)
+            if input_dtype == np.int8:
+                img_array = (img_array - 127.5) / 127.5
+            img_array = img_array.astype(input_dtype)
         else:
             img_array = np.asarray(img, dtype=input_dtype)
             
+        # Boyut kontrolü ve batch ekleme
         img_array = np.expand_dims(img_array, axis=0)
         
-        interpreter.set_tensor(input_details[0]['index'], img_array)
+        # Kesin eşleşme kontrolü
+        if img_array.shape != tuple(input_shape):
+            img_array = np.resize(img_array, input_shape)
+
+        interpreter.set_tensor(input_index, img_array)
         interpreter.invoke()
-        prediction = interpreter.get_tensor(output_details[0]['index'])
         
-        # Eğer model çıktıları integer (quantized) ise normalize et
+        prediction = interpreter.get_tensor(output_details[0]['index'])
         pred_vals = prediction[0]
+        
+        # Çıkış Quantization (Değer aralığı) düzenlemesi
         if output_details[0]['dtype'] in [np.int8, np.uint8]:
             scale, zero_point = output_details[0].get('quantization', (1.0, 0))
             if scale != 0:
                 pred_vals = (pred_vals.astype(np.float32) - zero_point) * scale
+        
+        # Softmax olasılık dönüşümü (eğerham logit dönüyorsa)
+        if np.max(pred_vals) > 1.0 or np.min(pred_vals) < 0.0:
+            exp_vals = np.exp(pred_vals - np.max(pred_vals))
+            pred_vals = exp_vals / np.sum(exp_vals)
 
         index = np.argmax(pred_vals)
         confidence = float(pred_vals[index])
         
-        # Eğer güven skoru 1'den büyükse (örneğin 0-255 aralığındaysa) yüzdeye çevir
-        if confidence > 1.0:
-            confidence = confidence / 255.0
-
         class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
@@ -164,6 +181,7 @@ else:
                         <h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven Skoru</h3>
                         <h2 style='margin:10px 0; color: #f87171;'>Model Kararsız Kaldı</h2>
                         <p style='margin:0; color: #9ca3af;'>Tespit Edilen: {harf_sade} (Güven: %{confidence * 100:.1f})</p>
+                        <p style='margin-top:5px; color: #fbbf24; font-size:0.85em;'>Lütfen görüntüyü daha net konumlandırıp tekrar deneyin.</p>
                     </div>
                 """, unsafe_allow_html=True)
             harf_eklenebilir = False
@@ -182,7 +200,7 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("**Model Olasılık Güven Skoru:**")
             st.progress(confidence)
-            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
+            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f} (Eşik Sınırı: %{int(GUVEN_ESIGI*100)})")
     else:
         with col_analiz:
             st.info("💡 Analiz başlatmak için lütfen yukarıdan veya sol taraftan bir girdi sağlayın.")
