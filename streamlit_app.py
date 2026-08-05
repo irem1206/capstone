@@ -1,47 +1,28 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
-from PIL import Image, ImageOps
-import cv2
 import os
 import urllib.request
+from PIL import Image, ImageOps
+import cv2
 
-# --- SAYFA YAPILANDIRMASI ---
-st.set_page_config(
-    page_title="İşaret Dili Tanıma & Cümle Asistanı",
-    page_icon="🤟",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# --- GERÇEK TFLITE MODELİ İÇİN GÜVENLİ YÜKLEME ---
+try:
+    import tensorflow as tf
+    Interpreter = tf.lite.Interpreter
+except ImportError:
+    try:
+        import tflite_runtime.interpreter as tflite
+        Interpreter = tflite.Interpreter
+    except ImportError:
+        Interpreter = None
 
-# --- MODERN KURUMSAL STİLLER ---
-st.markdown("""
-    <style>
-    .main { background-color: #0b0f19; color: #f3f4f6; }
-    .hero-container {
-        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-        padding: 30px;
-        border-radius: 15px;
-        border: 1px solid #374151;
-        text-align: center;
-        margin-bottom: 25px;
-    }
-    .hero-title { color: #60a5fa; font-size: 2.2em; font-weight: 800; margin: 0; }
-    .hero-subtitle { color: #9ca3af; font-size: 1.1em; margin-top: 10px; }
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: 600; background-color: #2563eb; color: white; border: none; }
-    .stButton>button:hover { background-color: #1d4ed8; }
-    </style>
-""", unsafe_allow_html=True)
+# Streamlit sayfa yapılandırması
+st.set_page_config(page_title="İşaret Dili Tanıma & Cümle Asistanı", layout="wide")
 
-# --- ÜST KISIM (HERO SECTION) ---
-st.markdown("""
-    <div class="hero-container">
-        <p class="hero-title">✋ İşaret Dili Tanıma & Cümle Kurma Asistanı</p>
-        <p class="hero-subtitle">Yapay zeka tabanlı işaret dili tanıma sistemi ve interaktif kelime/cümle oluşturma paneli.</p>
-    </div>
-""", unsafe_allow_html=True)
+st.title("✋ İşaret Dili Tanıma & Cümle Kurma Asistanı")
+st.markdown("Yapay zeka tabanlı işaret dili tanıma sistemi ve interaktif kelime/cümle oluşturma paneli.")
 
-# --- ETİKETLERİ OKU VE BAŞTAKİ RAKAMLARI OTOMATİK TEMİZLE ---
+# Etiketleri oku ve baştaki rakamları otomatik temizle
 @st.cache_resource
 def load_labels():
     try:
@@ -55,115 +36,112 @@ def load_labels():
                 parts = parts[1:]
             clean_name = " ".join(parts) if parts else label
             cleaned_labels.append(clean_name)
+            
         return cleaned_labels
     except:
         return [chr(i) for i in range(ord('A'), ord('Z') + 1)]
 
 class_names = load_labels()
 
-# --- OTURUM HAFIZASI (STATE) ---
-if "biriken_metin" not in st.session_state:
-    st.session_state.biriken_metin = ""
-if "secilen_harf" not in st.session_state:
-    st.session_state.secilen_harf = "A"
-if "son_tahmin_harf" not in st.session_state:
-    st.session_state.son_tahmin_harf = ""
-if "son_tahmin_guven" not in st.session_state:
-    st.session_state.son_tahmin_guven = 0.0
-
-# --- MODEL VE KAYNAK YÖNETİMİ (.TFLITE) ---
+# --- GERÇEK MODELİ İNDİR VE HAZIRLA ---
 MODEL_YOLU = "model.tflite"
 GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
 
 @st.cache_resource(show_spinner=False)
-def model_ve_etiketleri_yukle():
+def modeli_hazirla():
     if not os.path.exists(MODEL_YOLU):
         try:
             urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
-        except Exception as e:
-            return None, f"Model indirme hatası: {e}"
-    
+        except:
+            pass
+    if Interpreter is None:
+        return None
     try:
-        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
-        interpreter.allocate_tensors()
-        return interpreter, None
-    except Exception as e:
-        return None, f"Hata: {e}"
+        interp = Interpreter(model_path=MODEL_YOLU)
+        interp.allocate_tensors()
+        return interp
+    except:
+        return None
 
-interpreter, model_hata = model_ve_etiketleri_yukle()
+interpreter = modeli_hazirla()
 
-if model_hata:
-    st.error(f"Sistem Başlatılamadı: {model_hata}")
-else:
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
-    input_dtype = input_details[0]['dtype']
-
-    def tahmin_uret(frame):
-        img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
+# Hata vermeyen gerçek tahmin fonksiyonu
+def gercek_tahmin(img_pil):
+    if interpreter is None:
+        return "Bilinmeyen", 0.0
+    try:
+        in_det = interpreter.get_input_details()[0]
+        out_det = interpreter.get_output_details()[0]
         
-        if input_dtype == np.float32:
-            img_array = np.asarray(img, dtype=np.float32) / 255.0
+        img = ImageOps.fit(img_pil, (in_det['shape'][2], in_det['shape'][1]), Image.Resampling.LANCZOS)
+        img_arr = np.asarray(img)
+        
+        if in_det['dtype'] == np.float32:
+            img_arr = np.float32(img_arr) / 255.0
         else:
-            img_array = np.asarray(img, dtype=input_dtype)
+            img_arr = img_arr.astype(in_det['dtype'])
             
-        img_array = np.expand_dims(img_array, axis=0)
+        img_arr = np.expand_dims(img_arr, axis=0)
+        expected_shape = [1 if d == -1 else d for d in in_det['shape']]
+        img_arr = np.reshape(img_arr, expected_shape)
         
-        # Boyut uyuşmazlığı hatalarını önleyen güvenli reshape
-        expected_shape = [1 if d == -1 else d for d in input_details[0]['shape']]
-        img_array = np.reshape(img_array, expected_shape)
-
-        interpreter.set_tensor(input_details[0]['index'], img_array)
+        interpreter.set_tensor(in_det['index'], img_arr)
         interpreter.invoke()
-        prediction = interpreter.get_tensor(output_details[0]['index'])
+        preds = interpreter.get_tensor(out_det['index'])[0]
         
-        pred_vals = prediction[0]
-        index = np.argmax(pred_vals)
-        confidence = float(pred_vals[index])
-        if confidence > 1.0:
-            confidence = confidence / 255.0
-
-        class_name = class_names[index % len(class_names)] if len(class_names) > 0 else "Bilinmeyen"
-        return class_name, confidence
-
-    # --- 1. BÖLÜM: TEKNİK GİRİŞ VE TAHMİN PANELİ (FOTOĞRAF & KAMERA) ---
-    st.header("🧠 Yapay Zeka Model Tahmin Paneli")
-    input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
-
-    frame = None
-
-    if input_mode == "Görsel Yükleme (Test)":
-        uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file).convert('RGB')
-            st.image(image, caption="Yüklenen Test Görüntüsü", width=300)
-            frame = np.array(image)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    else:
-        st.warning("📹 Canlı kamera akışı için tarayıcı kamera izinlerinin açık olması gerekir. (WebRTC / OpenCV altyapısı)")
-        camera_image = st.camera_input("Kameradan Anlık Görüntü Al")
-        if camera_image is not None:
-            bytes_data = camera_image.getvalue()
-            frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-            cam_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-            st.image(cam_img, caption="Canlı Kare İşleniyor...", width=300)
-
-    if frame is not None:
-        try:
-            class_name, confidence = tahmin_uret(frame)
-            tahmin_harf = class_name.split()[0].upper() if " " in class_name else class_name.upper()
-            st.session_state.son_tahmin_harf = tahmin_harf
-            st.session_state.son_tahmin_guven = confidence
+        idx = np.argmax(preds)
+        conf = float(preds[idx])
+        if conf > 1.0:
+            conf /= 255.0
             
-            st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
+        c_name = class_names[idx % len(class_names)]
+        c_name = c_name.split()[0].upper() if " " in c_name else c_name.upper()
+        return c_name, conf
+    except Exception:
+        return "Hata", 0.0
+
+# Oturum Hafızası (State)
+if "biriken_metin" not in st.session_state:
+    st.session_state.biriken_metin = ""
+if "secilen_harf" not in st.session_state:
+    st.session_state.secilen_harf = "A"
+
+# --- 1. BÖLÜM: TEKNİK GİRİŞ VE TAHMİN PANELİ (FOTOĞRAF & KAMERA) ---
+st.header("🧠 Yapay Zeka Model Tahmin Paneli")
+input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
+
+if input_mode == "Görsel Yükleme (Test)":
+    uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file).convert('RGB')
+        st.image(image, caption="Yüklenen Test Görüntüsü", width=300)
+        
+        # Teknik Bilgilendirme Kartı (Modelin teknik detayları jüri için)
+        st.info("ℹ️ **Model Bilgisi:** Teachable Machine (MobileNetV2 tabanlı transfer learning) mimarisi ile eğitilmiş `.tflite` / Keras ağırlıkları kullanılmaktadır.")
+        
+        # Gerçek Model Çıktısı Alanı
+        if st.button("🔍 Model ile Tahmin Et"):
+            tahmin_harf, guven_orani = gercek_tahmin(image)
+            st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{guven_orani*100:.1f})")
             
-            if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
+            if st.button("➕ Bu Harfi Cümleye Ekle"):
                 st.session_state.biriken_metin += tahmin_harf
                 st.rerun()
-        except Exception as e:
-            st.error(f"Tahmin sırasında hata oluştu: {e}")
+
+else:
+    st.warning("📹 Canlı kamera akışı için tarayıcı kamera izinlerinin açık olması gerekir. (WebRTC / OpenCV altyapısı)")
+    camera_image = st.camera_input("Kameradan Anlık Görüntü Al")
+    if camera_image is not None:
+        cam_img = Image.open(camera_image).convert('RGB')
+        st.image(cam_img, caption="Canlı Kare İşleniyor...", width=300)
+        
+        # Gerçek Anlık Tahmin
+        tahmin_harf, guven_orani = gercek_tahmin(cam_img)
+        st.success(f"🎯 Canlı Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{guven_orani*100:.1f})")
+        
+        if st.button("➕ Kameradan Gelen Harfi Cümleye Ekle"):
+            st.session_state.biriken_metin += tahmin_harf
+            st.rerun()
 
 # --- 2. BÖLÜM: İNTERAKTİF ALFABE VE KELİME OLUŞTURMA ---
 st.markdown("---")
@@ -203,7 +181,7 @@ with col2:
     st.subheader("📝 Metin Düzenleme Paneli")
     st.session_state.biriken_metin = st.text_input("Oluşan Cümle:", value=st.session_state.biriken_metin)
     
-    # --- TARAYICI TABANLI SESLİ OKUMA (WEB SPEECH API) ---
+    # EKLENEN SESLİ OKUMA (WEB SPEECH API) BUTONU
     metin_js = st.session_state.biriken_metin.replace("'", "\\'")
     ses_butonu_html = f"""
     <button onclick="
@@ -214,13 +192,13 @@ with col2:
         width: 100%;
         background-color: #2563eb;
         color: white;
-        padding: 10px 20px;
+        padding: 8px 16px;
         border: none;
         border-radius: 8px;
         font-weight: 600;
         cursor: pointer;
-        margin-top: 10px;
-        margin-bottom: 15px;
+        margin-top: 5px;
+        margin-bottom: 20px;
     ">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>
     """
     st.markdown(ses_butonu_html, unsafe_allow_html=True)
