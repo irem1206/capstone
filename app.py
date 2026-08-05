@@ -5,7 +5,7 @@ import os
 import urllib.request
 from PIL import Image, ImageOps
 
-# --- TFLITE YÜKLEME (Çökmeleri Önler) ---
+# --- TFLITE YÜKLEME ---
 try:
     import tensorflow as tf
     Interpreter = tf.lite.Interpreter
@@ -38,13 +38,10 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HAFIZA (Klavye ve Görsel Bağlantısı İçin) ---
-if 'cumle' not in st.session_state: 
-    st.session_state.cumle = ""
-if 'aktif_harf' not in st.session_state: 
-    st.session_state.aktif_harf = ""
-if 'aktif_guven' not in st.session_state: 
-    st.session_state.aktif_guven = 0.0
+# --- HAFIZA ---
+if 'cumle' not in st.session_state: st.session_state.cumle = ""
+if 'aktif_harf' not in st.session_state: st.session_state.aktif_harf = ""
+if 'aktif_guven' not in st.session_state: st.session_state.aktif_guven = 0.0
 
 # --- MODEL YÜKLEME ---
 MODEL_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
@@ -81,7 +78,6 @@ def tahmin_yap(frame):
             
         img_arr = np.expand_dims(img_arr, axis=0)
         
-        # O lanet olası boyut hatasını (ValueError) tamamen engelleyen satır
         expected_shape = [1 if d == -1 else d for d in in_det['shape']]
         img_arr = np.reshape(img_arr, expected_shape)
 
@@ -111,7 +107,6 @@ with col1:
         if cam:
             frame = cv2.imdecode(np.frombuffer(cam.getvalue(), np.uint8), cv2.IMREAD_COLOR)
 
-# Kameradan veya fotoğraftan gelen anlık veriyi işle
 if frame is not None:
     h, c = tahmin_yap(frame)
     st.session_state.aktif_harf = h.split()[0].upper() if " " in h else h.upper()
@@ -125,7 +120,6 @@ with col2:
         harf = st.session_state.aktif_harf
         guven = st.session_state.aktif_guven
         
-        # Kamera kullanılıyorken güven düşükse kırmızı kutu, klavyedeyse hep yeşil kutu çıkar
         if guven < 0.70 and frame is not None:
             st.markdown(f"<div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #ef4444; text-align: center;'><h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven</h3><h1 style='margin:10px 0; color: #f87171;'>{harf}</h1><p style='color: #9ca3af;'>Güven: %{guven*100:.1f}</p></div>", unsafe_allow_html=True)
         else:
@@ -173,7 +167,6 @@ for satir in alfabe:
     cols = st.columns(len(satir))
     for i, harf in enumerate(satir):
         if cols[i].button(harf, key=f"k_{harf}"):
-            # KLAVYEYE BASILINCA HEM YUKARIDAKİ YEŞİL KUTUYU HEM DE CÜMLEYİ GÜNCELLER
             st.session_state.aktif_harf = harf
             st.session_state.aktif_guven = 1.0  
             st.session_state.cumle += harf
