@@ -1,31 +1,29 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 import cv2
 import os
 import urllib.request
 from PIL import Image, ImageOps
 
-# --- SAYFA YAPILANDIRMASI ---
-st.set_page_config(
-    page_title="İşaret Dili Akıllı Çeviri ve Sentezleme",
-    page_icon="🤟",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# --- TFLITE YÜKLEME (Çökmeleri Önler) ---
+try:
+    import tensorflow as tf
+    Interpreter = tf.lite.Interpreter
+except ImportError:
+    try:
+        import tflite_runtime.interpreter as tflite
+        Interpreter = tflite.Interpreter
+    except ImportError:
+        Interpreter = None
 
-# --- MODERN KURUMSAL STİLLER ---
+# --- SAYFA YAPILANDIRMASI ---
+st.set_page_config(page_title="İşaret Dili Asistanı", page_icon="🤟", layout="wide", initial_sidebar_state="collapsed")
+
+# --- MODERN STİLLER ---
 st.markdown("""
     <style>
     .main { background-color: #0b0f19; color: #f3f4f6; }
-    .hero-container {
-        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-        padding: 30px;
-        border-radius: 15px;
-        border: 1px solid #374151;
-        text-align: center;
-        margin-bottom: 25px;
-    }
+    .hero-container { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); padding: 30px; border-radius: 15px; border: 1px solid #374151; text-align: center; margin-bottom: 25px; }
     .hero-title { color: #60a5fa; font-size: 2.2em; font-weight: 800; margin: 0; }
     .hero-subtitle { color: #9ca3af; font-size: 1.1em; margin-top: 10px; }
     .stButton>button { width: 100%; border-radius: 8px; font-weight: 600; background-color: #2563eb; color: white; border: none; }
@@ -33,196 +31,150 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ÜST KISIM (HERO SECTION) ---
 st.markdown("""
-    <div class="hero-container">
-        <p class="hero-title">🤟 Yapay Zeka Destekli Türk İşaret Dili Çeviri Asistanı</p>
-        <p class="hero-subtitle">Edge-AI Tabanlı Gerçek Zamanlı Görsel Tanıma ve Dinamik Cümle Sentezleme Motoru</p>
+    <div class='hero-container'>
+        <p class='hero-title'>🤟 Yapay Zeka Destekli Türk İşaret Dili Çeviri Asistanı</p>
+        <p class='hero-subtitle'>Edge-AI Tabanlı Gerçek Zamanlı Görsel Tanıma ve Dinamik Cümle Sentezleme Motoru</p>
     </div>
 """, unsafe_allow_html=True)
 
-# --- HAFIZA VE DURUM YÖNETİMİ ---
-if 'cumle_hafizasi' not in st.session_state:
-    st.session_state.cumle_hafizasi = ""
-if 'gorsel_harf' not in st.session_state:
-    st.session_state.gorsel_harf = ""  # Kameradan veya klavyeden gelen anlık harf
-if 'gorsel_guven' not in st.session_state:
-    st.session_state.gorsel_guven = 0.0
+# --- HAFIZA (Klavye ve Görsel Bağlantısı İçin) ---
+if 'cumle' not in st.session_state: 
+    st.session_state.cumle = ""
+if 'aktif_harf' not in st.session_state: 
+    st.session_state.aktif_harf = ""
+if 'aktif_guven' not in st.session_state: 
+    st.session_state.aktif_guven = 0.0
 
-# --- MODEL VE KAYNAK YÖNETİMİ ---
-MODEL_YOLU = "model.tflite"
-ETIKET_YOLU = "labels.txt"
-GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
+# --- MODEL YÜKLEME ---
+MODEL_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
+if not os.path.exists("model.tflite"):
+    try: urllib.request.urlretrieve(MODEL_URL, "model.tflite")
+    except: pass
 
 @st.cache_resource(show_spinner=False)
-def model_ve_etiketleri_yukle():
-    if not os.path.exists(MODEL_YOLU):
-        try:
-            urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
-        except:
-            pass
+def modeli_hazirla():
+    if not Interpreter or not os.path.exists("model.tflite"): return None, []
     try:
-        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
-        interpreter.allocate_tensors()
-        class_names = []
-        if os.path.exists(ETIKET_YOLU):
-            with open(ETIKET_YOLU, "r", encoding="utf-8") as f:
-                for line in f.readlines():
-                    parts = line.strip().split()
-                    if parts and parts[0].isdigit():
-                        parts = parts[1:]
-                    class_names.append(" ".join(parts) if parts else line.strip())
-        return interpreter, class_names
+        interp = Interpreter(model_path="model.tflite")
+        interp.allocate_tensors()
+        labels = ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ", "H", "I", "İ", "J", "K", "L", "M", "N", "O", "Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V", "Y", "Z"]
+        if os.path.exists("labels.txt"):
+            with open("labels.txt", "r", encoding="utf-8") as f:
+                labels = [line.strip().split(" ", 1)[-1] if line.strip()[0].isdigit() else line.strip() for line in f.readlines()]
+        return interp, labels
     except:
         return None, []
 
-interpreter, class_names = model_ve_etiketleri_yukle()
+interpreter, class_names = modeli_hazirla()
 
-def tahmin_uret(frame):
-    if not interpreter:
-        return "Bilinmeyen", 0.0
-    
-    in_det = interpreter.get_input_details()[0]
-    out_det = interpreter.get_output_details()[0]
-    target_h, target_w = in_det['shape'][1], in_det['shape'][2]
-    
-    img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img_resized = cv2.resize(img_rgb, (target_w, target_h))
-    
-    # Boyut ve tip hatalarını (ValueError) kökünden çözen dönüşüm
-    img_arr = np.asarray(img_resized, dtype=np.float32) / 255.0
-    img_arr = np.expand_dims(img_arr, axis=0)
-    expected_shape = [1 if d == -1 else d for d in in_det['shape']]
-    img_arr = np.reshape(img_arr, expected_shape)
-
-    interpreter.set_tensor(in_det['index'], img_arr)
-    interpreter.invoke()
-    preds = interpreter.get_tensor(out_det['index'])[0]
-    
-    idx = np.argmax(preds)
-    conf = float(preds[idx])
-    if conf > 1.0:
-        conf /= 255.0
-    c_name = class_names[idx] if idx < len(class_names) else "Bilinmeyen"
-    return c_name, conf
-
-# --- ANA EKRAN DÜZENİ ---
-col_sol, col_sag = st.columns([1.2, 1], gap="large")
-
-with col_sol:
-    st.subheader("📹 Canlı Veri Akışı (Girdi)")
-    girdi_turu = st.radio("Girdi türünü seçin:", ["Fotoğraf Yükle", "Kamera Kullan"], horizontal=True)
-    frame = None
-    
-    if girdi_turu == "Fotoğraf Yükle":
-        dosya = st.file_uploader("Bir resim seçin...", type=["jpg", "jpeg", "png"])
-        if dosya:
-            file_bytes = np.asarray(bytearray(dosya.read()), dtype=np.uint8)
-            frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    else:
-        kamera = st.camera_input("Kamera Sensörünü Aktifleştir")
-        if kamera:
-            bytes_data = kamera.getvalue()
-            frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-
-# Modeli sadece geçerli bir görüntü (frame) varsa çalıştır
-if frame is not None:
+def tahmin_yap(frame):
+    if not interpreter: return "Bilinmeyen", 0.0
     try:
-        h, c = tahmin_uret(frame)
-        st.session_state.gorsel_harf = h.split()[0].upper()
-        st.session_state.gorsel_guven = c
-    except Exception:
-        pass
-
-with col_sag:
-    st.subheader("📊 Model Çıkarım & Doğruluk Filtresi")
-    
-    # Ne kamera ne de klavye kullanılmadıysa başlangıç uyarısını göster
-    if st.session_state.gorsel_harf == "":
-        st.info("👈 Analizi başlatmak veya görsel paneli görmek için soldan bir resim ekleyin ya da en aşağıdaki klavyeden bir harfe tıklayın.")
-    else:
-        harf = st.session_state.gorsel_harf
-        guven = st.session_state.gorsel_guven
+        in_det = interpreter.get_input_details()[0]
+        out_det = interpreter.get_output_details()[0]
         
-        # Sadece model tahminlerinde güven %70 altındaysa uyar (Klavyede güven hep 1.0'dır)
+        img = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), (in_det['shape'][2], in_det['shape'][1]))
+        
+        if in_det['dtype'] == np.float32: img_arr = np.float32(img) / 255.0
+        else: img_arr = img.astype(in_det['dtype'])
+            
+        img_arr = np.expand_dims(img_arr, axis=0)
+        
+        # O lanet olası boyut hatasını (ValueError) tamamen engelleyen satır
+        expected_shape = [1 if d == -1 else d for d in in_det['shape']]
+        img_arr = np.reshape(img_arr, expected_shape)
+
+        interpreter.set_tensor(in_det['index'], img_arr)
+        interpreter.invoke()
+        preds = interpreter.get_tensor(out_det['index'])[0]
+        
+        idx = np.argmax(preds)
+        conf = float(preds[idx]) / 255.0 if float(preds[idx]) > 1.0 else float(preds[idx])
+        return class_names[idx] if idx < len(class_names) else "Bilinmeyen", conf
+    except Exception:
+        return "Hata", 0.0
+
+# --- ARAYÜZ ---
+col1, col2 = st.columns([1.2, 1], gap="large")
+
+with col1:
+    st.subheader("📹 Canlı Veri Akışı")
+    girdi = st.radio("Seçim:", ["Kamera", "Fotoğraf"], horizontal=True, label_visibility="collapsed")
+    frame = None
+    if girdi == "Fotoğraf":
+        file = st.file_uploader("Resim seç", type=["jpg", "png"])
+        if file:
+            frame = cv2.imdecode(np.asarray(bytearray(file.read()), dtype=np.uint8), cv2.IMREAD_COLOR)
+    else:
+        cam = st.camera_input("Kamera")
+        if cam:
+            frame = cv2.imdecode(np.frombuffer(cam.getvalue(), np.uint8), cv2.IMREAD_COLOR)
+
+# Kameradan veya fotoğraftan gelen anlık veriyi işle
+if frame is not None:
+    h, c = tahmin_yap(frame)
+    st.session_state.aktif_harf = h.split()[0].upper() if " " in h else h.upper()
+    st.session_state.aktif_guven = c
+
+with col2:
+    st.subheader("📊 Model Çıkarım Paneli")
+    if st.session_state.aktif_harf == "":
+        st.info("Kameradan, fotoğraftan veya en aşağıdaki klavyeden bir giriş bekliyorum...")
+    else:
+        harf = st.session_state.aktif_harf
+        guven = st.session_state.aktif_guven
+        
+        # Kamera kullanılıyorken güven düşükse kırmızı kutu, klavyedeyse hep yeşil kutu çıkar
         if guven < 0.70 and frame is not None:
-            st.markdown(f"""
-                <div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #ef4444; text-align: center;'>
-                    <h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven Skoru</h3>
-                    <h2 style='margin:10px 0; color: #f87171;'>Model Kararsız Kaldı</h2>
-                    <p style='margin:0; color: #9ca3af;'>Tespit Edilen: {harf} (Güven: %{guven * 100:.1f})</p>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #ef4444; text-align: center;'><h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven</h3><h1 style='margin:10px 0; color: #f87171;'>{harf}</h1><p style='color: #9ca3af;'>Güven: %{guven*100:.1f}</p></div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"""
-                <div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #10b981; text-align: center;'>
-                    <span style='color: #9ca3af; font-size: 0.9em; text-transform: uppercase;'>Aktif Tahmin / Seçim</span>
-                    <h1 style='margin: 10px 0; color: #34d399; font-size: 4em; font-weight: 800;'>{harf}</h1>
-                    <span style='color: #9ca3af; font-size: 0.85em;'>Güven Skoru: %{guven * 100:.1f}</span>
-                </div>
-            """, unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.progress(guven)
+            st.markdown(f"<div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #10b981; text-align: center;'><span style='color: #9ca3af; text-transform: uppercase;'>Aktif Tahmin / Seçim</span><h1 style='margin: 10px 0; color: #34d399; font-size: 5em;'>{harf}</h1><span style='color: #9ca3af;'>Güven Skoru: %{guven*100:.1f}</span></div>", unsafe_allow_html=True)
+        st.progress(guven)
 
-# --- CÜMLE VE SES SENTEZLEME BİRİMİ ---
+# --- METİN VE SES SENTEZLEME ---
 st.markdown("---")
-st.subheader("📝 Dinamik Cümle ve Ses Sentezleme Motoru")
+st.subheader("📝 Metin ve Ses Motoru")
 
-col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    # Eğer yeşil ekranda bir harf varsa (kamera veya klavye yoluyla) cümleye ekler
-    if st.button("➕ Görseldeki Harfi Cümleye Aktar", type="primary"):
-        if st.session_state.gorsel_harf:
-            st.session_state.cumle_hafizasi += st.session_state.gorsel_harf
-            st.rerun()
-with col_btn2:
-    if st.button("␣ Boşluk Karakteri Ekle"):
-        st.session_state.cumle_hafizasi += " "
+c1, c2 = st.columns(2)
+if c1.button("➕ Yukarıdaki Harfi Ekle", type="primary"):
+    if st.session_state.aktif_harf:
+        st.session_state.cumle += st.session_state.aktif_harf
         st.rerun()
+if c2.button("␣ Boşluk Ekle"):
+    st.session_state.cumle += " "
+    st.rerun()
 
-st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
+st.session_state.cumle = st.text_input("Çıktı:", value=st.session_state.cumle, label_visibility="collapsed")
 
-# --- TARAYICI TABANLI SESLİ OKUMA ---
-metin_js = st.session_state.cumle_hafizasi.replace("'", "\\'")
-st.markdown(f"""
-<button onclick="
-    const utterance = new SpeechSynthesisUtterance('{metin_js}');
-    utterance.lang = 'tr-TR';
-    window.speechSynthesis.speak(utterance);
-" style="width: 100%; background-color: #2563eb; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;">
-🔊 Cümleyi Sesli Oku (Text-to-Speech)
-</button>
-""", unsafe_allow_html=True)
+metin_js = st.session_state.cumle.replace("'", "\\'")
+st.markdown(f"<button onclick=\"const u = new SpeechSynthesisUtterance('{metin_js}'); u.lang='tr-TR'; window.speechSynthesis.speak(u);\" style='width: 100%; background-color: #2563eb; color: white; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;'>🔊 Sesli Oku</button>", unsafe_allow_html=True)
 
-col_del1, col_del2 = st.columns(2)
-with col_del1:
-    if st.button("⬅️ Son Karakteri Sil"):
-        st.session_state.cumle_hafizasi = st.session_state.cumle_hafizasi[:-1]
-        st.rerun()
-with col_del2:
-    if st.button("🧹 Belleği Sıfırla"):
-        st.session_state.cumle_hafizasi = ""
-        st.rerun()
+c3, c4 = st.columns(2)
+if c3.button("⬅️ Sil"):
+    st.session_state.cumle = st.session_state.cumle[:-1]
+    st.rerun()
+if c4.button("🧹 Temizle"):
+    st.session_state.cumle = ""
+    st.rerun()
 
-# --- SANAL KLAVYE ---
+# --- EN ALT KISIM: SANAL KLAVYE ---
 st.markdown("---")
-st.subheader("⌨️ Manuel Harf Giriş Paneli (Sanal Klavye)")
-st.markdown("<p style='color: #9ca3af; font-size: 0.9em;'>Harflere tıkladığınızda yukarıdaki yeşil panel anında o harfe güncellenir ve kelimeye eklenir:</p>", unsafe_allow_html=True)
+st.subheader("⌨️ Sanal Klavye")
 
 alfabe = [
-    ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ"],
-    ["H", "I", "İ", "J", "K", "L", "M", "N", "O"],
-    ["Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V"],
-    ["Y", "Z"]
+    ["A","B","C","Ç","D","E","F","G","Ğ"], 
+    ["H","I","İ","J","K","L","M","N","O"], 
+    ["Ö","P","R","S","Ş","T","U","Ü","V"], 
+    ["Y","Z"]
 ]
 
 for satir in alfabe:
-    c = st.columns(len(satir))
-    for i, h in enumerate(satir):
-        with c[i]:
-            if st.button(h, key=f"klavye_{h}"):
-                # Klavyeye basıldığında hem görsel paneli günceller hem de cümleye ekler
-                st.session_state.gorsel_harf = h
-                st.session_state.gorsel_guven = 1.0  # Klavyeden basıldığı için %100 güven
-                st.session_state.cumle_hafizasi += h
-                st.rerun()
+    cols = st.columns(len(satir))
+    for i, harf in enumerate(satir):
+        if cols[i].button(harf, key=f"k_{harf}"):
+            # KLAVYEYE BASILINCA HEM YUKARIDAKİ YEŞİL KUTUYU HEM DE CÜMLEYİ GÜNCELLER
+            st.session_state.aktif_harf = harf
+            st.session_state.aktif_guven = 1.0  
+            st.session_state.cumle += harf
+            st.rerun()
