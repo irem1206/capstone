@@ -97,11 +97,21 @@ if model_hata:
 else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
     input_dtype = input_details[0]['dtype']
 
     def tahmin_uret(frame):
-        img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        expected_shape = input_details[0]['shape']
+        target_size = (expected_shape[2], expected_shape[1]) # Genişlik, Yükseklik
+        
+        # Model RGB (3 kanal) mi yoksa Siyah-Beyaz (1 kanal) mı istiyor kontrol et
+        channels = expected_shape[3] if len(expected_shape) > 3 else 3
+        
+        if channels == 1:
+            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+        img_pil = Image.fromarray(processed_frame)
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
         if input_dtype == np.float32:
@@ -109,10 +119,14 @@ else:
         else:
             img_array = np.asarray(img, dtype=input_dtype)
             
+        # Siyah beyaz (Grayscale) görüntü (96x96) ise kanal boyutunu manuel ekle (96x96x1)
+        if len(img_array.shape) == 2 and channels == 1:
+            img_array = np.expand_dims(img_array, axis=-1)
+            
         img_array = np.expand_dims(img_array, axis=0)
         
-        expected_shape = [1 if d == -1 else d for d in input_details[0]['shape']]
-        img_array = np.reshape(img_array, expected_shape)
+        safe_shape = [1 if d == -1 else d for d in expected_shape]
+        img_array = np.reshape(img_array, safe_shape)
 
         interpreter.set_tensor(input_details[0]['index'], img_array)
         interpreter.invoke()
@@ -262,7 +276,7 @@ if metin.strip():
                         
                         if os.path.exists(resim_yolu):
                             img = Image.open(resim_yolu)
-                            # İŞTE KRİTİK DÜZELTME BURADA: use_column_width yerine use_container_width kullanıldı.
+                            # use_column_width hatası use_container_width=True ile düzeltildi!
                             st.image(img, use_container_width=True, caption=f"{harf}")
                         else:
                             st.warning(f"'{harf}' yok")
