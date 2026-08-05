@@ -99,23 +99,28 @@ else:
     output_details = interpreter.get_output_details()
     input_dtype = input_details[0]['dtype']
 
-   def tahmin_uret(frame):
+    def tahmin_uret(frame):
         expected_shape = input_details[0]['shape']
-        target_size = (expected_shape[2], expected_shape[1]) # Genişlik, Yükseklik
+        target_size = (expected_shape[2], expected_shape[1])
         
-        # Görüntüyü renkli (RGB) formatta al (Teachable Machine RGB eğitilir)
-        processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        channels = expected_shape[3] if len(expected_shape) > 3 else 3
+        
+        if channels == 1:
+            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
         img_pil = Image.fromarray(processed_frame)
-        # Teachable Machine nesneyi merkezden kırparak (Center Crop) öğrenir
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
-        # İŞTE BÜTÜN DOĞRULUĞU BOZAN YERİN DÜZELTİLMİŞ HALİ (Doğru Normalizasyon)
+        # İŞTE MODELİ DOĞRU ÇALIŞTIRACAK NORMALİZASYON FORMÜLÜ (-1 ile 1 aralığı)
         if input_dtype == np.float32:
-            # Pikselleri (0-255) alıp (-1, 1) aralığına çekiyoruz. Gerçek formül budur.
             img_array = (np.asarray(img, dtype=np.float32) / 127.5) - 1.0
         else:
             img_array = np.asarray(img, dtype=input_dtype)
+            
+        if len(img_array.shape) == 2 and channels == 1:
+            img_array = np.expand_dims(img_array, axis=-1)
             
         img_array = np.expand_dims(img_array, axis=0)
         
@@ -271,7 +276,7 @@ if metin.strip():
                         
                         if os.path.exists(resim_yolu):
                             img = Image.open(resim_yolu)
-                            # use_column_width hatası use_container_width=True ile düzeltildi!
+                            # TypeError hatasını düzelten kısım (use_container_width)
                             st.image(img, use_container_width=True, caption=f"{harf}")
                         else:
                             st.warning(f"'{harf}' yok")
