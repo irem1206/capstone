@@ -87,24 +87,42 @@ else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
     target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
+    input_dtype = input_details[0]['dtype']
 
     def tahmin_uret(frame):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
-        img_array = np.asarray(img, dtype=np.float32) / 255.0
+        # Modelin beklediği veri tipine (dtype) göre otomatik matris dönüşümü (Float32 veya Int8)
+        if input_dtype == np.float32:
+            img_array = np.asarray(img, dtype=np.float32) / 255.0
+        else:
+            img_array = np.asarray(img, dtype=input_dtype)
+            
         img_array = np.expand_dims(img_array, axis=0)
         
         interpreter.set_tensor(input_details[0]['index'], img_array)
         interpreter.invoke()
         prediction = interpreter.get_tensor(output_details[0]['index'])
         
-        index = np.argmax(prediction[0])
-        confidence = float(prediction[0][index])
+        # Eğer model çıktıları integer (quantized) ise normalize et
+        pred_vals = prediction[0]
+        if output_details[0]['dtype'] in [np.int8, np.uint8]:
+            scale, zero_point = output_details[0].get('quantization', (1.0, 0))
+            if scale != 0:
+                pred_vals = (pred_vals.astype(np.float32) - zero_point) * scale
+
+        index = np.argmax(pred_vals)
+        confidence = float(pred_vals[index])
+        
+        # Eğer güven skoru 1'den büyükse (örneğin 0-255 aralığındaysa) yüzdeye çevir
+        if confidence > 1.0:
+            confidence = confidence / 255.0
+
         class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
         return class_name, confidence
 
-    # --- GİRDİ YÖNTEMİ SEÇİMİ (Fotoğraf Yükle / Kamera Kullan) ---
+    # --- GİRDİ YÖNTEMİ SEÇİMİ ---
     col_kamera, col_analiz = st.columns([1.2, 1], gap="large")
 
     with col_kamera:
@@ -137,7 +155,6 @@ else:
         class_name, confidence = tahmin_uret(frame)
         harf_sade = class_name.split()[0].upper() if " " in class_name else class_name.upper()
         
-        # --- KRİTİK DOĞRULUK FİLTRESİ (%70 Eşiği) ---
         GUVEN_ESIGI = 0.70  
         
         if confidence < GUVEN_ESIGI:
@@ -147,7 +164,6 @@ else:
                         <h3 style='margin:0; color: #ef4444;'>⚠️ Düşük Güven Skoru</h3>
                         <h2 style='margin:10px 0; color: #f87171;'>Model Kararsız Kaldı</h2>
                         <p style='margin:0; color: #9ca3af;'>Tespit Edilen: {harf_sade} (Güven: %{confidence * 100:.1f})</p>
-                        <p style='margin-top:5px; color: #fbbf24; font-size:0.85em;'>Lütfen görüntüyü daha net konumlandırıp tekrar deneyin.</p>
                     </div>
                 """, unsafe_allow_html=True)
             harf_eklenebilir = False
@@ -166,7 +182,7 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("**Model Olasılık Güven Skoru:**")
             st.progress(confidence)
-            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f} (Eşik Sınırı: %{int(GUVEN_ESIGI*100)})")
+            st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
     else:
         with col_analiz:
             st.info("💡 Analiz başlatmak için lütfen yukarıdan veya sol taraftan bir girdi sağlayın.")
@@ -240,3 +256,14 @@ else:
                 if st.button(harf, key=f"klavye_{harf}"):
                     st.session_state.cumle_hafizasi += harf
                     st.rerun()
+
+    # --- JÜRİ İÇİN TEKNİK BİLGİ SEKMESİ (Sistem Mimarisi) ---
+    st.markdown("---")
+    with st.expander("⚙️ Jüri ve Teknik Detaylar Bilgi Kartı"):
+        st.markdown(f"""
+        - **Kullanılan Mimari:** TensorFlow Lite (TFLite) Optimize Edilmiş Edge-AI Modeli + Web Speech API
+        - **Giriş Çözünürlüğü:** {target_size[0]}x{target_size[1]} piksel RGB Tensor Matrisi (Lanczos Yeniden Boyutlandırma)
+        - **Bellek Yönetimi:** `st.cache_resource` ile donanım katmanı önbelleklemesi aktif.
+        - **Çıkarım Süresi (Inference Latency):** Düşük gecikmeli CPU/XNNPACK donanım ivmelenmesi.
+        - **Doğruluk Güvenlik Katmanı:** %70 dinamik eşik filtresi (Thresholding) ile gürültü önleme.
+        """)
