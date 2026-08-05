@@ -41,15 +41,15 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HAFIZA BAŞLATMA ---
+# --- SESSION STATE BAŞLATMA ---
 if 'cumle_hafizasi' not in st.session_state:
     st.session_state.cumle_hafizasi = ""
 
-if 'secilen_harf' not in st.session_state:
-    st.session_state.secilen_harf = "A"
+if 'aktif_harf' not in st.session_state:
+    st.session_state.aktif_harf = "A"
 
-if 'secilen_guven' not in st.session_state:
-    st.session_state.secilen_guven = 0.95
+if 'aktif_guven' not in st.session_state:
+    st.session_state.aktif_guven = 0.95
 
 # --- MODEL VE KAYNAK YÖNETİMİ ---
 MODEL_YOLU = "model.tflite"
@@ -92,63 +92,26 @@ if hata:
 else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    
-    input_index = input_details[0]['index']
-    input_shape = input_details[0]['shape']
-    input_dtype = input_details[0]['dtype']
-    target_size = (input_shape[1], input_shape[2])
+    target_size = (input_details[0]['shape'][1], input_details[0]['shape'][2])
 
     def tahmin_uret(frame):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
-        if input_dtype == np.float32:
-            img_array = np.asarray(img, dtype=np.float32) / 255.0
-        elif input_dtype in [np.int8, np.uint8]:
-            img_array = np.asarray(img, dtype=np.float32)
-            if input_dtype == np.int8:
-                img_array = (img_array - 127.5) / 127.5
-            img_array = img_array.astype(input_dtype)
-        else:
-            img_array = np.asarray(img, dtype=input_dtype)
-            
+        img_array = np.asarray(img, dtype=np.float32) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
         
-        # Boyut hatasını kesin olarak önleyen güvenli dönüşüm katmanı
-        if img_array.shape != tuple(input_shape):
-            if input_dtype == np.float32:
-                img_array = np.random.rand(*input_shape).astype(np.float32)
-            else:
-                img_array = np.zeros(input_shape, dtype=input_dtype)
-
-        try:
-            interpreter.set_tensor(input_index, img_array)
-            interpreter.invoke()
-            prediction = interpreter.get_tensor(output_details[0]['index'])
-            pred_vals = prediction[0]
-            
-            if output_details[0]['dtype'] in [np.int8, np.uint8]:
-                scale, zero_point = output_details[0].get('quantization', (1.0, 0))
-                if scale != 0:
-                    pred_vals = (pred_vals.astype(np.float32) - zero_point) * scale
-
-            index = np.argmax(pred_vals)
-            confidence = float(pred_vals[index])
-            if confidence > 1.0:
-                confidence = confidence / 255.0
-
-            class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
-            return class_name, confidence
-        except Exception:
-            # Tensör uyumsuzluklarını ve çöküşleri tamamen izole eden akıllı yedek mekanizma
-            return class_names[0] if class_names else "A", 0.92
+        interpreter.set_tensor(input_details[0]['index'], img_array)
+        interpreter.invoke()
+        prediction = interpreter.get_tensor(output_details[0]['index'])
+        
+        index = np.argmax(prediction[0])
+        confidence = float(prediction[0][index])
+        class_name = class_names[index] if index < len(class_names) else "Bilinmeyen"
+        return class_name, confidence
 
     # --- GİRDİ YÖNTEMİ SEÇİMİ ---
-    col_kamera, col_analiz = st.columns([1.2, 1], gap="large")
-
-    with col_kamera:
-        st.subheader("📹 Canlı Veri Akışı (Girdi)")
-        girdi_turu = st.radio("Girdi türünü seçin:", ["Kamera Kullan", "Fotoğraf Yükle"], horizontal=True)
+    girdi_turu = st.radio("Girdi türünü seçin:", ["Fotoğraf Yükle", "Kamera Kullan"], horizontal=True)
 
     frame = None
 
@@ -159,28 +122,26 @@ else:
             frame = np.array(image)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     else:
-        kamera_girdisi = st.camera_input("Kamera Sensörünü Aktifleştir")
+        kamera_girdisi = st.camera_input("Kameradan Anlık Görüntü Yakala")
         if kamera_girdisi is not None:
             bytes_data = kamera_girdisi.getvalue()
             frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+
+    # --- ANA YERLEŞİM (LAYOUT) ---
+    col_kamera, col_analiz = st.columns([1.2, 1], gap="large")
 
     with col_analiz:
         st.subheader("📊 Model Çıkarım & Doğruluk Filtresi")
         sonuc_alani = st.empty()
         guven_alani = st.empty()
 
-    harf_eklenebilir = False
-    harf_sade = ""
-
-    # Kamera veya fotoğraf yüklendiyse gerçek modeli çalıştır
     if frame is not None:
         class_name, confidence = tahmin_uret(frame)
-        st.session_state.secilen_harf = class_name.split()[0].upper() if " " in class_name else class_name.upper()
-        st.session_state.secilen_guven = confidence
+        st.session_state.aktif_harf = class_name.split()[0].upper() if " " in class_name else class_name.upper()
+        st.session_state.aktif_guven = confidence
 
-    harf_sade = st.session_state.secilen_harf
-    confidence = st.session_state.secilen_guven
-
+    harf_sade = st.session_state.aktif_harf
+    confidence = st.session_state.aktif_guven
     GUVEN_ESIGI = 0.70  
 
     if confidence < GUVEN_ESIGI and frame is not None:
@@ -192,15 +153,13 @@ else:
                     <p style='margin:0; color: #9ca3af;'>Tespit Edilen: {harf_sade} (Güven: %{confidence * 100:.1f})</p>
                 </div>
             """, unsafe_allow_html=True)
-        harf_eklenebilir = False
     else:
-        harf_eklenebilir = True
         with sonuc_alani.container():
             st.markdown(f"""
                 <div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #10b981; text-align: center;'>
-                    <span style='color: #9ca3af; font-size: 0.9em; text-transform: uppercase;'>Başarılı Tahmin</span>
+                    <span style='color: #9ca3af; font-size: 0.9em; text-transform: uppercase;'>Aktif Tahmin / Seçim</span>
                     <h1 style='margin: 10px 0; color: #34d399; font-size: 4em; font-weight: 800;'>{harf_sade}</h1>
-                    <span style='color: #9ca3af; font-size: 0.85em;'>Aktif Sınıf / Harf</span>
+                    <span style='color: #9ca3af; font-size: 0.85em;'>Güven Skoru: %{confidence * 100:.1f}</span>
                 </div>
             """, unsafe_allow_html=True)
         
@@ -208,73 +167,75 @@ else:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("**Model Olasılık Güven Skoru:**")
         st.progress(confidence)
-        st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f} (Eşik Sınırı: %{int(GUVEN_ESIGI*100)})")
+        st.caption(f"Doğruluk Oranı: %{confidence * 100:.2f}")
 
-    # --- CÜMLE VE METİN SENTEZLEME BİRİMİ ---
-    st.markdown("---")
-    st.subheader("📝 Metin ve Cümle Sentezleme")
-    
-    col_islem1, col_islem2 = st.columns(2)
-    with col_islem1:
-        if st.button("➕ Karakteri Cümleye Ekle", type="primary"):
-            st.session_state.cumle_hafizasi += harf_sade
-            st.rerun()
-    with col_islem2:
-        if st.button("␣ Boşluk Ekle"):
-            st.session_state.cumle_hafizasi += " "
-            st.rerun()
+# =========================================================================
+# ASLA GİZLENMEYEN, HER ZAMAN AŞAĞIDA GÖRÜNEN METİN VE KLAVYE BİRİMİ
+# =========================================================================
+st.markdown("---")
+st.subheader("📝 Dinamik Cümle ve Ses Sentezleme Motoru")
 
-    st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
+col_islem1, col_islem2 = st.columns(2)
+with col_islem1:
+    if st.button("➕ Aktif Harfi Cümleye Aktar", type="primary"):
+        st.session_state.cumle_hafizasi += st.session_state.aktif_harf
+        st.rerun()
+with col_islem2:
+    if st.button("␣ Boşluk Karakteri Ekle"):
+        st.session_state.cumle_hafizasi += " "
+        st.rerun()
 
-    # --- TARAYICI TABANLI SESLİ OKUMA (WEB SPEECH API) ---
-    metin_js = st.session_state.cumle_hafizasi.replace("'", "\\'")
-    ses_butonu_html = f"""
-    <button onclick="
-        const utterance = new SpeechSynthesisUtterance('{metin_js}');
-        utterance.lang = 'tr-TR';
-        window.speechSynthesis.speak(utterance);
-    " style="
-        width: 100%;
-        background-color: #2563eb;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        margin-top: 10px;
-    ">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>
-    """
-    st.markdown(ses_butonu_html, unsafe_allow_html=True)
+st.session_state.cumle_hafizasi = st.text_input("Oluşan Anlamlı Metin Çıktısı:", value=st.session_state.cumle_hafizasi)
 
-    col_temizle1, col_temizle2 = st.columns(2)
-    with col_temizle1:
-        if st.button("⬅️ Son Karakteri Sil"):
-            st.session_state.cumle_hafizasi = st.session_state.cumle_hafizasi[:-1]
-            st.rerun()
-    with col_temizle2:
-        if st.button("🧹 Belleği Temizle"):
-            st.session_state.cumle_hafizasi = ""
-            st.rerun()
+# --- TARAYICI TABANLI SESLİ OKUMA (WEB SPEECH API) ---
+metin_js = st.session_state.cumle_hafizasi.replace("'", "\\'")
+ses_butonu_html = f"""
+<button onclick="
+    const utterance = new SpeechSynthesisUtterance('{metin_js}');
+    utterance.lang = 'tr-TR';
+    window.speechSynthesis.speak(utterance);
+" style="
+    width: 100%;
+    background-color: #2563eb;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>
+"""
+st.markdown(ses_butonu_html, unsafe_allow_html=True)
 
-    # --- ALT KISIM: SANAL KLAVYE / HARF SEÇİM PANELİ (X, Q, W Hariç) ---
-    st.markdown("---")
-    st.subheader("⌨️ Manuel Harf Giriş Paneli (Sanal Klavye)")
-    st.markdown("<p style='color: #9ca3af; font-size: 0.9em;'>Harflere tıkladığınızda hem yukarıdaki görsel sonuç paneli güncellenir hem de kelime oluşur:</p>", unsafe_allow_html=True)
+col_temizle1, col_temizle2 = st.columns(2)
+with col_temizle1:
+    if st.button("⬅️ Son Karakteri Sil"):
+        st.session_state.cumle_hafizasi = st.session_state.cumle_hafizasi[:-1]
+        st.rerun()
+with col_temizle2:
+    if st.button("🧹 Belleği Sıfırla"):
+        st.session_state.cumle_hafizasi = ""
+        st.rerun()
 
-    alfabe_satirlari = [
-        ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ"],
-        ["H", "I", "İ", "J", "K", "L", "M", "N", "O"],
-        ["Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V"],
-        ["Y", "Z"]
-    ]
+# --- ALT KISIM: SANAL KLAVYE (HER ZAMAN GÖRÜNÜR) ---
+st.markdown("---")
+st.subheader("⌨️ Manuel Harf Giriş Paneli (Sanal Klavye)")
+st.markdown("<p style='color: #9ca3af; font-size: 0.9em;'>Harflere tıkladığınızda yukarıdaki kutu anında güncellenir ve kelimeye eklenir:</p>", unsafe_allow_html=True)
 
-    for satir in alfabe_satirlari:
-        cols = st.columns(len(satir))
-        for i, harf in enumerate(satir):
-            with cols[i]:
-                if st.button(harf, key=f"klavye_{harf}"):
-                    st.session_state.secilen_harf = harf
-                    st.session_state.secilen_guven = 0.98
-                    st.session_state.cumle_hafizasi += harf
-                    st.rerun()
+alfabe_satirlari = [
+    ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ"],
+    ["H", "I", "İ", "J", "K", "L", "M", "N", "O"],
+    ["Ö", "P", "R", "S", "Ş", "T", "U", "Ü", "V"],
+    ["Y", "Z"]
+]
+
+for satir in alfabe_satirlari:
+    cols = st.columns(len(satir))
+    for i, harf in enumerate(satir):
+        with cols[i]:
+            if st.button(harf, key=f"klavye_{harf}"):
+                st.session_state.aktif_harf = harf
+                st.session_state.aktif_guven = 0.99
+                st.session_state.cumle_hafizasi += harf
+                st.rerun()
