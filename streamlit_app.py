@@ -99,29 +99,23 @@ else:
     output_details = interpreter.get_output_details()
     input_dtype = input_details[0]['dtype']
 
-    def tahmin_uret(frame):
+   def tahmin_uret(frame):
         expected_shape = input_details[0]['shape']
         target_size = (expected_shape[2], expected_shape[1]) # Genişlik, Yükseklik
         
-        # Model RGB (3 kanal) mi yoksa Siyah-Beyaz (1 kanal) mı istiyor kontrol et
-        channels = expected_shape[3] if len(expected_shape) > 3 else 3
-        
-        if channels == 1:
-            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Görüntüyü renkli (RGB) formatta al (Teachable Machine RGB eğitilir)
+        processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
         img_pil = Image.fromarray(processed_frame)
+        # Teachable Machine nesneyi merkezden kırparak (Center Crop) öğrenir
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
+        # İŞTE BÜTÜN DOĞRULUĞU BOZAN YERİN DÜZELTİLMİŞ HALİ (Doğru Normalizasyon)
         if input_dtype == np.float32:
-            img_array = np.asarray(img, dtype=np.float32) / 255.0
+            # Pikselleri (0-255) alıp (-1, 1) aralığına çekiyoruz. Gerçek formül budur.
+            img_array = (np.asarray(img, dtype=np.float32) / 127.5) - 1.0
         else:
             img_array = np.asarray(img, dtype=input_dtype)
-            
-        # Siyah beyaz (Grayscale) görüntü (96x96) ise kanal boyutunu manuel ekle (96x96x1)
-        if len(img_array.shape) == 2 and channels == 1:
-            img_array = np.expand_dims(img_array, axis=-1)
             
         img_array = np.expand_dims(img_array, axis=0)
         
@@ -135,6 +129,7 @@ else:
         pred_vals = prediction[0]
         index = np.argmax(pred_vals)
         confidence = float(pred_vals[index])
+        
         if confidence > 1.0:
             confidence = confidence / 255.0
 
