@@ -1,17 +1,26 @@
-import streamlit as st
-import numpy as np
-import cv2
-import requests
 import os
-import base64
 import random
+import base64
+import requests
+import cv2
+import numpy as np
+import streamlit as st
 from PIL import Image
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY")
+ROBOFLOW_MODEL_ID = os.getenv("ROBOFLOW_MODEL_ID")
 
 st.set_page_config(
     page_title="İşaret Dili Tanıma",
     page_icon="🤟",
     layout="wide"
 )
+
+if "biriken_metin" not in st.session_state:
+    st.session_state.biriken_metin = ""
 
 st.markdown("""
     <style>
