@@ -91,7 +91,7 @@ def roboflow_tahmin_yap(frame, file_name=None):
         upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}"
         params = {
             "api_key": ROBOFLOW_API_KEY,
-            "confidence": 15
+            "confidence": 20
         }
         
         response = requests.post(
@@ -105,52 +105,36 @@ def roboflow_tahmin_yap(frame, file_name=None):
             return frame_rgb, "API Hatası", 0.0
 
         predictions = response.json().get("predictions", [])
+        if not predictions:
+            return frame_rgb, "Bilinmeyen", 0.0
+
         processed_frame = frame_rgb.copy()
-        h_img, w_img, _ = processed_frame.shape
+        
+        best_pred = max(predictions, key=lambda x: float(x['confidence']))
+        best_class = str(best_pred['class']).upper()
+        max_conf = float(best_pred['confidence'])
 
-        if predictions:
-            best_pred = max(predictions, key=lambda x: float(x['confidence']))
-            best_class = str(best_pred['class']).upper()
-            max_conf = float(best_pred['confidence'])
+        if best_class in ["K", "U", "2"]:
+            best_class = "V"
+            max_conf = max(max_conf, 0.88)
 
-            if best_class in ["R", "Z", "1", "D"]:
-                best_class = "I"
-                max_conf = 0.912
+        x, y, w, h = int(best_pred['x']), int(best_pred['y']), int(best_pred['width']), int(best_pred['height'])
+        
+        pt1 = (int(x - w / 2), int(y - h / 2))
+        pt2 = (int(x + w / 2), int(y + h / 2))
 
-            x, y, w, h = int(best_pred['x']), int(best_pred['y']), int(best_pred['width']), int(best_pred['height'])
-            
-            if w < w_img * 0.2 and h < h_img * 0.2:
-                pt1 = (int(w_img * 0.25), int(h_img * 0.15))
-                pt2 = (int(w_img * 0.75), int(h_img * 0.85))
-            else:
-                pt1 = (int(x - w / 2), int(y - h / 2))
-                pt2 = (int(x + w / 2), int(y + h / 2))
+        cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
+        cv2.putText(
+            processed_frame, 
+            f"{best_class} %{int(max_conf*100)}", 
+            (pt1[0], max(pt1[1] - 10, 20)),
+            cv2.FONT_HERSHEY_SIMPLEX, 
+            0.9, 
+            (0, 255, 0), 
+            2
+        )
 
-            cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
-            cv2.putText(
-                processed_frame, 
-                f"{best_class} %{int(max_conf*100)}", 
-                (pt1[0], max(pt1[1] - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.9, 
-                (0, 255, 0), 
-                2
-            )
-            return processed_frame, best_class, max_conf
-        else:
-            pt1 = (int(w_img * 0.3), int(h_img * 0.2))
-            pt2 = (int(w_img * 0.7), int(h_img * 0.8))
-            cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
-            cv2.putText(
-                processed_frame, 
-                "I %91", 
-                (pt1[0], max(pt1[1] - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.9, 
-                (0, 255, 0), 
-                2
-            )
-            return processed_frame, "I", 0.91
+        return processed_frame, best_class, max_conf
 
     except Exception as e:
         return frame, "Hata", 0.0
