@@ -3,15 +3,6 @@ import numpy as np
 import cv2
 import requests
 import os
-from PIL import Image
-
-# --- SAYFA YAPILANDIRMASI ---
-st.set_page_config(
-    page_title="İşaret Dili Tanıma",import streamlit as st
-import numpy as np
-import cv2
-import requests
-import os
 import base64
 from PIL import Image
 
@@ -20,7 +11,6 @@ st.set_page_config(
     page_icon="🤟",
     layout="wide"
 )
-
 st.markdown("""
     <style>
     .main { background-color: #0b0f19; color: #f3f4f6; }
