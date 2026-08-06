@@ -33,7 +33,7 @@ if 'aktif_harf' not in st.session_state: st.session_state.aktif_harf = ""
 if 'aktif_guven' not in st.session_state: st.session_state.aktif_guven = 0.0
 
 # --- ROBOFLOW CONFIG ---
-ROBOFLOW_MODEL_ID = "turkish-sign-language-alphabet-tid/1"
+ROBOFLOW_MODEL_ID = "turkish-sign-language-letters/1"
 # Roboflow Private API Key'ini buraya yazıyorsun
 ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4" 
 
@@ -58,7 +58,8 @@ def roboflow_tahmin_yap(frame):
         )
 
         if response.status_code != 200:
-            return frame, "HATA", 0.0
+            st.error(f"Roboflow API Hatası ({response.status_code}): {response.text}")
+            return frame, "API Hatası", 0.0
 
         predictions = response.json().get("predictions", [])
         
