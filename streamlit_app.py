@@ -6,7 +6,9 @@ import cv2
 import os
 import urllib.request
 
-# --- SAYFA YAPILANDIRMASI ---
+ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
+
 st.set_page_config(
     page_title="İşaret Dili Tanıma & Cümle Asistanı",
     page_icon="🤟",
@@ -14,7 +16,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
     <style>
     .main { background-color: #0b0f19; color: #f3f4f6; }
@@ -33,7 +34,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- ÜST KISIM (HERO SECTION) ---
 st.markdown("""
     <div class="hero-container">
         <p class="hero-title">✋ İşaret Dili Tanıma & Cümle Kurma Asistanı</p>
@@ -41,7 +41,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- ETİKETLERİ OKU VE BAŞTAKİ RAKAMLARI OTOMATİK TEMİZLE ---
 @st.cache_resource
 def load_labels():
     try:
@@ -61,7 +60,6 @@ def load_labels():
 
 class_names = load_labels()
 
-# --- OTURUM HAFIZASI (STATE) ---
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
 if "secilen_harf" not in st.session_state:
@@ -71,7 +69,6 @@ if "son_tahmin_harf" not in st.session_state:
 if "son_tahmin_guven" not in st.session_state:
     st.session_state.son_tahmin_guven = 0.0
 
-# --- MODEL VE KAYNAK YÖNETİMİ (.TFLITE) ---
 MODEL_YOLU = "model.tflite"
 GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
 
@@ -113,7 +110,6 @@ else:
         img_pil = Image.fromarray(processed_frame)
         img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
         
-        # İŞTE MODELİ DOĞRU ÇALIŞTIRACAK NORMALİZASYON FORMÜLÜ (-1 ile 1 aralığı)
         if input_dtype == np.float32:
             img_array = (np.asarray(img, dtype=np.float32) / 127.5) - 1.0
         else:
@@ -141,7 +137,6 @@ else:
         class_name = class_names[index % len(class_names)] if len(class_names) > 0 else "Bilinmeyen"
         return class_name, confidence
 
-    # --- 1. BÖLÜM: TEKNİK GİRİŞ VE TAHMİN PANELİ (FOTOĞRAF & KAMERA) ---
     st.header("🧠 Yapay Zeka Model Tahmin Paneli")
     input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
 
@@ -178,7 +173,6 @@ else:
         except Exception as e:
             st.error(f"Tahmin sırasında hata oluştu: {e}")
 
-# --- 2. BÖLÜM: İNTERAKTİF ALFABE VE KELİME OLUŞTURMA ---
 st.markdown("---")
 st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
 
@@ -216,7 +210,6 @@ with col2:
     st.subheader("📝 Metin Düzenleme Paneli")
     st.session_state.biriken_metin = st.text_input("Oluşan Cümle:", value=st.session_state.biriken_metin)
     
-    # --- TARAYICI TABANLI SESLİ OKUMA (WEB SPEECH API) ---
     metin_js = st.session_state.biriken_metin.replace("'", "\\'")
     ses_butonu_html = f"""
     <button onclick="
@@ -251,7 +244,6 @@ with col2:
     else:
         st.info(f"📌 '{current_letter}' için örnek görsel yüklenmemiş.")
 
-# --- 3. BÖLÜM: KELİME KELİME İŞARET DİLİ GÖRSEL DİZİSİ ---
 st.markdown("---")
 st.header("🤟 Cümlenin İşaret Dili Karşılığı (Görsel Akış)")
 
@@ -276,7 +268,6 @@ if metin.strip():
                         
                         if os.path.exists(resim_yolu):
                             img = Image.open(resim_yolu)
-                            # TypeError hatasını düzelten kısım (use_container_width)
                             st.image(img, use_container_width=True, caption=f"{harf}")
                         else:
                             st.warning(f"'{harf}' yok")
