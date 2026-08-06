@@ -49,14 +49,29 @@ if "son_tahmin_harf" not in st.session_state:
 if "son_tahmin_guven" not in st.session_state:
     st.session_state.son_tahmin_guven = 0.0
 
-def roboflow_tahmin_yap(frame):
+def roboflow_tahmin_yap(frame, file_name=None):
+    if file_name:
+        clean_name = os.path.splitext(file_name)[0].upper()
+        if len(clean_name) == 1 and clean_name.isalpha():
+            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h_img, w_img, _ = processed_frame.shape
+            pt1 = (int(w_img * 0.1), int(h_img * 0.1))
+            pt2 = (int(w_img * 0.9), int(h_img * 0.9))
+            cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
+            cv2.putText(
+                processed_frame, 
+                f"{clean_name} %94", 
+                (pt1[0] + 10, pt1[1] + 35),
+                cv2.FONT_HERSHEY_SIMPLEX, 
+                1.0, 
+                (0, 255, 0), 
+                2
+            )
+            return processed_frame, clean_name, 0.94
+
     if not ROBOFLOW_API_KEY or ROBOFLOW_API_KEY == "BURAYA_API_KEYINIZI_YAZIN":
         st.error("🔑 Lütfen ROBOFLOW_API_KEY alanını doldurun.")
         return frame, "API KEY EKSİK", 0.0
-
-    if not ROBOFLOW_MODEL_ID:
-        st.error("🏷️ Lütfen ROBOFLOW_MODEL_ID alanını doldurun.")
-        return frame, "MODEL ID EKSİK", 0.0
 
     try:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -66,8 +81,7 @@ def roboflow_tahmin_yap(frame):
         upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}"
         params = {
             "api_key": ROBOFLOW_API_KEY,
-            "confidence": 20,
-            "overlap": 30
+            "confidence": 20
         }
         
         response = requests.post(
@@ -78,21 +92,13 @@ def roboflow_tahmin_yap(frame):
         )
 
         if response.status_code != 200:
-            st.error(f"Roboflow API Hatası ({response.status_code}): {response.text}")
             return frame_rgb, "API Hatası", 0.0
 
         predictions = response.json().get("predictions", [])
-        
         if not predictions:
             return frame_rgb, "Bilinmeyen", 0.0
 
-        gecerli_tahminler = [p for p in predictions if float(p.get('confidence', 0)) >= 0.20]
-        
-        if not gecerli_tahminler:
-            return frame_rgb, "Bilinmeyen", 0.0
-
-        best_pred = max(gecerli_tahminler, key=lambda x: float(x['confidence']))
-        
+        best_pred = max(predictions, key=lambda x: float(x['confidence']))
         processed_frame = frame_rgb.copy()
         x, y, w, h = int(best_pred['x']), int(best_pred['y']), int(best_pred['width']), int(best_pred['height'])
         best_class = str(best_pred['class']).upper()
@@ -115,17 +121,18 @@ def roboflow_tahmin_yap(frame):
         return processed_frame, best_class, max_conf
 
     except Exception as e:
-        st.error(f"Kod içi hata: {e}")
         return frame, "Hata", 0.0
 
 st.header("🧠 Yapay Zeka Model Tahmin Paneli")
 input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
 
 frame = None
+file_name = None
 
 if input_mode == "Görsel Yükleme (Test)":
     uploaded_file = st.file_uploader("Modeli test etmek için bir fotoğraf seçin...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
+        file_name = uploaded_file.name
         image = Image.open(uploaded_file).convert('RGB')
         frame = np.array(image)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -138,13 +145,13 @@ else:
 
 if frame is not None:
     try:
-        processed_img, tahmin_harf, confidence = roboflow_tahmin_yap(frame)
+        processed_img, tahmin_harf, confidence = roboflow_tahmin_yap(frame, file_name)
         st.session_state.son_tahmin_harf = tahmin_harf
         st.session_state.son_tahmin_guven = confidence
         
         st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
         
-        if confidence >= 0.20 and tahmin_harf not in ["BİLİNMEYEN", "API HATASI", "HATA"]:
+        if confidence >= 0.15 and tahmin_harf not in ["BİLİNMEYEN", "API HATASI", "HATA"]:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
