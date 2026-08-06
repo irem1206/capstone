@@ -33,7 +33,7 @@ if 'aktif_harf' not in st.session_state: st.session_state.aktif_harf = ""
 if 'aktif_guven' not in st.session_state: st.session_state.aktif_guven = 0.0
 
 # --- ROBOFLOW CONFIG ---
-ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_MODEL_ID = "turkish-sign-language-alphabet-tid/1"
 # Roboflow Private API Key'ini buraya yazıyorsun
 ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4" 
 
@@ -49,7 +49,7 @@ def roboflow_tahmin_yap(frame):
         img_bytes = img_encoded.tobytes()
 
         # Roboflow API Endpoint
-        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=40"
+        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=50"
         
         response = requests.post(
             upload_url,
