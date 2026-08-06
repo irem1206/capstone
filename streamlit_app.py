@@ -36,7 +36,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_MODEL_ID = "turkish-sign-language-letters/1"
 ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
 
 if "biriken_metin" not in st.session_state:
