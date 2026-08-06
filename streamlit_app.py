@@ -142,7 +142,7 @@ else:
 
     frame = None
 
-    if input_mode == "Görsel Yükleme (Test)":
+    if input_mode == "Görsel Yükleme":
         uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
         if uploaded_file is not None:
             image = Image.open(uploaded_file).convert('RGB')
@@ -179,7 +179,7 @@ st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.subheader("Harf Seçim Matrisi")
+    st.subheader("Harf Seçimi")
     harfler = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
     
     cols = st.columns(6)
@@ -245,7 +245,7 @@ with col2:
         st.info(f"📌 '{current_letter}' için örnek görsel yüklenmemiş.")
 
 st.markdown("---")
-st.header("🤟 Cümlenin İşaret Dili Karşılığı (Görsel Akış)")
+st.header("🤟 Cümlenin İşaret Dili Karşılığı")
 
 metin = st.session_state.biriken_metin.upper()
 
