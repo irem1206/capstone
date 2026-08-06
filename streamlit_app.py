@@ -33,7 +33,7 @@ st.markdown("""
 
 st.markdown("""
     <div class="hero-container">
-        <p class="hero-title">✋ İşaret Dili Tanıma & Cümle Kurma Asistanı</p>
+        <p class="hero-title">✋ Yapay Zeka Destekli İşaret Dili Tanıma ve Metin Dönüştürme Sistemi</p>
         <p class="hero-subtitle">Yapay zeka tabanlı işaret dili tanıma sistemi ve interaktif kelime/cümle oluşturma paneli.</p>
     </div>
 """, unsafe_allow_html=True)
