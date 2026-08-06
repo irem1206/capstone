@@ -31,7 +31,7 @@ if 'cumle' not in st.session_state: st.session_state.cumle = ""
 if 'aktif_harf' not in st.session_state: st.session_state.aktif_harf = ""
 if 'aktif_guven' not in st.session_state: st.session_state.aktif_guven = 0.0
 
-ROBOFLOW_MODEL_ID = "irem-can/turkish-sign-language-vppy3-a9hok-1-rfdetr-small-t1"
+ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya/1"
 ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4" 
 
 def roboflow_tahmin_yap(frame):
