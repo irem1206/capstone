@@ -27,14 +27,11 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HAFIZA ---
 if 'cumle' not in st.session_state: st.session_state.cumle = ""
 if 'aktif_harf' not in st.session_state: st.session_state.aktif_harf = ""
 if 'aktif_guven' not in st.session_state: st.session_state.aktif_guven = 0.0
 
-# --- ROBOFLOW CONFIG ---
 ROBOFLOW_MODEL_ID = "turkish-sign-language-letters/1"
-# Roboflow Private API Key'ini buraya yazıyorsun
 ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4" 
 
 def roboflow_tahmin_yap(frame):
@@ -43,13 +40,11 @@ def roboflow_tahmin_yap(frame):
         return frame, "API KEY EKSİK", 0.0
 
     try:
-        # BGR (OpenCV) -> RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         _, img_encoded = cv2.imencode('.jpg', frame_rgb)
         img_bytes = img_encoded.tobytes()
 
-        # Roboflow API Endpoint
-        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=50"
+        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=65"
         
         response = requests.post(
             upload_url,
@@ -71,6 +66,7 @@ def roboflow_tahmin_yap(frame):
         max_conf = 0.0
 
         # Tespit edilen nesneleri/harfleri çiz
+       # Tespit edilen nesneleri/harfleri çiz
         for pred in predictions:
             x, y, w, h = int(pred['x']), int(pred['y']), int(pred['width']), int(pred['height'])
             label = str(pred['class']).upper()
@@ -96,12 +92,21 @@ def roboflow_tahmin_yap(frame):
                 2
             )
 
+        
+        if max_conf < 0.65:
+            return processed_frame, "Algılanamadı (TİD Uyumsuz)", max_conf
+       
+
         return processed_frame, best_class, max_conf
 
     except Exception as e:
         return frame, "Hata", 0.0
 
-# --- ARAYÜZ ---
+        return processed_frame, best_class, max_conf
+
+    except Exception as e:
+        return frame, "Hata", 0.0
+
 col1, col2 = st.columns([1.2, 1], gap="large")
 
 out_frame = None
@@ -139,7 +144,6 @@ with col2:
             st.markdown(f"<div style='background-color: #1f2937; padding: 25px; border-radius: 12px; border: 1px solid #10b981; text-align: center;'><span style='color: #9ca3af; text-transform: uppercase;'>Aktif Tahmin / Seçim</span><h1 style='margin: 10px 0; color: #34d399; font-size: 5em;'>{harf}</h1><span style='color: #9ca3af;'>Güven Skoru: %{guven*100:.1f}</span></div>", unsafe_allow_html=True)
         st.progress(float(guven))
 
-# --- METİN VE SES SENTEZLEME ---
 st.markdown("---")
 st.subheader("📝 Metin ve Ses Motoru")
 
@@ -165,7 +169,6 @@ if c4.button("🧹 Temizle"):
     st.session_state.cumle = ""
     st.rerun()
 
-# --- EN ALT KISIM: SANAL KLAVYE ---
 st.markdown("---")
 st.subheader("⌨️ Sanal Klavye")
 
