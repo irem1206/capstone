@@ -214,10 +214,6 @@ with col1:
 with col2:
     st.subheader("📝 Metin Düzenleme Paneli")
     st.session_state.biriken_metin = st.text_input("Oluşan Cümle:", value=st.session_state.biriken_metin)
-    
-    metin_js = st.session_state.biriken_metin.replace("'", "\\'")
-    ses_butonu_html = f"""<button onclick="const utterance = new SpeechSynthesisUtterance('{metin_js}'); utterance.lang = 'tr-TR'; window.speechSynthesis.speak(utterance);" style="width: 100%; background-color: #2563eb; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 5px; margin-bottom: 20px;">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>"""
-    st.markdown(ses_butonu_html, unsafe_allow_html=True)
 
 st.markdown("---")
 st.header("🤟 Cümlenin İşaret Dili Karşılığı (Görsel Akış)")
