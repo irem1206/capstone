@@ -91,7 +91,7 @@ def roboflow_tahmin_yap(frame, file_name=None):
         upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}"
         params = {
             "api_key": ROBOFLOW_API_KEY,
-            "confidence": 20
+            "confidence": 50
         }
         
         response = requests.post(
