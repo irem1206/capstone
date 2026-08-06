@@ -5,12 +5,14 @@ import requests
 import os
 from PIL import Image
 
+# --- SAYFA YAPILANDIRMASI ---
 st.set_page_config(
     page_title="İşaret Dili Tanıma",
     page_icon="🤟",
     layout="wide"
 )
 
+# --- MODERN KURUMSAL STİLLER ---
 st.markdown("""
     <style>
     .main { background-color: #0b0f19; color: #f3f4f6; }
@@ -29,6 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- ÜST KISIM ---
 st.markdown("""
     <div class="hero-container">
         <p class="hero-title">✋ İşaret Dili Tanıma & Cümle Kurma Asistanı</p>
@@ -36,9 +39,11 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- ROBOFLOW AYARLARI ---
 ROBOFLOW_MODEL_ID = "irem-can/turkish-sign-language-vppy3-a9hok-1-rfdetr-small-t1"
-ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4"
 
+# --- OTURUM HAFIZASI ---
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
 if "secilen_harf" not in st.session_state:
@@ -50,14 +55,20 @@ if "son_tahmin_guven" not in st.session_state:
 
 def roboflow_tahmin_yap(frame):
     if not ROBOFLOW_API_KEY or ROBOFLOW_API_KEY == "BURAYA_ROBOFLOW_API_KEYINIZI_YAZIN":
+        st.error("🔑 Lütfen ROBOFLOW_API_KEY değişkenini doldurun.")
         return frame, "API KEY EKSİK", 0.0
+
+    if not ROBOFLOW_MODEL_ID or ROBOFLOW_MODEL_ID == "BURAYA_ROBOFLOW_MODEL_IDNIZI_YAZIN":
+        st.error("🏷️ Lütfen ROBOFLOW_MODEL_ID değişkenini doldurun.")
+        return frame, "MODEL ID EKSİK", 0.0
 
     try:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         _, img_encoded = cv2.imencode('.jpg', frame_rgb)
         img_bytes = img_encoded.tobytes()
 
-        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=40"
+        # Eşik değerini %5'e çektik ki en ufak ihtimali bile yakalasın
+        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=5"
         
         response = requests.post(
             upload_url,
@@ -66,6 +77,7 @@ def roboflow_tahmin_yap(frame):
         )
 
         if response.status_code != 200:
+            st.error(f"Roboflow API Hatası ({response.status_code}): {response.text}")
             return frame_rgb, "API Hatası", 0.0
 
         predictions = response.json().get("predictions", [])
@@ -102,7 +114,8 @@ def roboflow_tahmin_yap(frame):
 
         return processed_frame, best_class, max_conf
 
-    except Exception:
+    except Exception as e:
+        st.error(f"Kod içi istisna hatası: {e}")
         return frame, "Hata", 0.0
 
 # --- 1. BÖLÜM: MODEL TAHMİN PANELSİ ---
@@ -132,7 +145,8 @@ if frame is not None:
         
         st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
         
-        if confidence > 0.35:
+        # Gösterme eşiği %5 skora düşürüldü
+        if confidence > 0.05:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
@@ -143,6 +157,7 @@ if frame is not None:
     except Exception as e:
         st.error(f"Tahmin sırasında hata oluştu: {e}")
 
+# --- 2. BÖLÜM: İNTERAKTİF ALFABE VE CÜMLE PANENLİ ---
 st.markdown("---")
 st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
 
@@ -201,6 +216,7 @@ with col2:
     """
     st.markdown(ses_butonu_html, unsafe_allow_html=True)
 
+# --- 3. BÖLÜM: GÖRSEL AKIŞ ---
 st.markdown("---")
 st.header("🤟 Cümlenin İşaret Dili Karşılığı (Görsel Akış)")
 
