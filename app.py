@@ -44,7 +44,7 @@ def roboflow_tahmin_yap(frame):
         _, img_encoded = cv2.imencode('.jpg', frame_rgb)
         img_bytes = img_encoded.tobytes()
 
-        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=65"
+        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=15"
         
         response = requests.post(
             upload_url,
