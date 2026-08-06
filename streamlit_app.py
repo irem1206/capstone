@@ -40,8 +40,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- ROBOFLOW AYARLARI ---
-ROBOFLOW_MODEL_ID = "irem-can/turkish-sign-language-vppy3-a9hok-1-rfdetr-small-t1"
-ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya/1"
+ROBOFLOW_API_KEY = "ggw75nomaYTUJtoijwI4"
 
 # --- OTURUM HAFIZASI ---
 if "biriken_metin" not in st.session_state:
