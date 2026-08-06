@@ -85,10 +85,14 @@ def roboflow_tahmin_yap(frame):
         if not predictions:
             return frame_rgb, "Bilinmeyen", 0.0
 
+        gecerli_tahminler = [p for p in predictions if float(p.get('confidence', 0)) >= 0.15]
+        
+        if not gecerli_tahminler:
+            return frame_rgb, "Bilinmeyen", 0.0
+
+        best_pred = max(gecerli_tahminler, key=lambda x: float(x['confidence']))
+        
         processed_frame = frame_rgb.copy()
-        
-        best_pred = max(predictions, key=lambda x: float(x['confidence']))
-        
         x, y, w, h = int(best_pred['x']), int(best_pred['y']), int(best_pred['width']), int(best_pred['height'])
         best_class = str(best_pred['class']).upper()
         max_conf = float(best_pred['confidence'])
@@ -139,7 +143,7 @@ if frame is not None:
         
         st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
         
-        if confidence > 0.15:
+        if confidence > 0.15 and tahmin_harf not in ["BİLİNMEYEN", "API HATASI", "HATA"]:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
