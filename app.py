@@ -66,7 +66,8 @@ def roboflow_tahmin_yap(frame):
         upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}"
         params = {
             "api_key": ROBOFLOW_API_KEY,
-            "confidence": 15
+            "confidence": 10,
+            "overlap": 30
         }
         
         response = requests.post(
@@ -85,31 +86,32 @@ def roboflow_tahmin_yap(frame):
         if not predictions:
             return frame_rgb, "Bilinmeyen", 0.0
 
-        gecerli_tahminler = [p for p in predictions if float(p.get('confidence', 0)) >= 0.15]
-        
-        if not gecerli_tahminler:
-            return frame_rgb, "Bilinmeyen", 0.0
-
-        best_pred = max(gecerli_tahminler, key=lambda x: float(x['confidence']))
-        
         processed_frame = frame_rgb.copy()
-        x, y, w, h = int(best_pred['x']), int(best_pred['y']), int(best_pred['width']), int(best_pred['height'])
-        best_class = str(best_pred['class']).upper()
-        max_conf = float(best_pred['confidence'])
+        best_class = "Bilinmeyen"
+        max_conf = 0.0
 
-        pt1 = (int(x - w / 2), int(y - h / 2))
-        pt2 = (int(x + w / 2), int(y + h / 2))
+        for pred in predictions:
+            x, y, w, h = int(pred['x']), int(pred['y']), int(pred['width']), int(pred['height'])
+            label = str(pred['class']).upper()
+            conf = float(pred['confidence'])
 
-        cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
-        cv2.putText(
-            processed_frame, 
-            f"{best_class} %{int(max_conf*100)}", 
-            (pt1[0], max(pt1[1] - 10, 20)),
-            cv2.FONT_HERSHEY_SIMPLEX, 
-            0.9, 
-            (0, 255, 0), 
-            2
-        )
+            if conf > max_conf:
+                max_conf = conf
+                best_class = label
+
+            pt1 = (int(x - w / 2), int(y - h / 2))
+            pt2 = (int(x + w / 2), int(y + h / 2))
+
+            cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
+            cv2.putText(
+                processed_frame, 
+                f"{label} %{int(conf*100)}", 
+                (pt1[0], max(pt1[1] - 10, 20)),
+                cv2.FONT_HERSHEY_SIMPLEX, 
+                0.9, 
+                (0, 255, 0), 
+                2
+            )
 
         return processed_frame, best_class, max_conf
 
@@ -143,7 +145,7 @@ if frame is not None:
         
         st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
         
-        if confidence > 0.15 and tahmin_harf not in ["BİLİNMEYEN", "API HATASI", "HATA"]:
+        if confidence > 0.10:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
