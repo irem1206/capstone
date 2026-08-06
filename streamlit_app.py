@@ -66,7 +66,7 @@ def roboflow_tahmin_yap(frame):
         upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}"
         params = {
             "api_key": ROBOFLOW_API_KEY,
-            "confidence": 5
+            "confidence": 25
         }
         
         response = requests.post(
@@ -144,7 +144,7 @@ if frame is not None:
         
         st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
         
-        if confidence > 0.05:
+        if confidence > 0.25:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
