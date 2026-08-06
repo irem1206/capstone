@@ -1,19 +1,14 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
-from PIL import Image, ImageOps
 import cv2
+import requests
 import os
-import urllib.request
-
-ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya-1-rfdetr-small-t1"
-ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
+from PIL import Image
 
 st.set_page_config(
-    page_title="İşaret Dili Tanıma & Cümle Asistanı",
+    page_title="İşaret Dili Tanıma",
     page_icon="🤟",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
 st.markdown("""
@@ -41,24 +36,8 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def load_labels():
-    try:
-        with open("labels.txt", "r", encoding="utf-8") as f:
-            raw_labels = [line.strip() for line in f.readlines()]
-        
-        cleaned_labels = []
-        for label in raw_labels:
-            parts = label.split()
-            if parts and parts[0].isdigit():
-                parts = parts[1:]
-            clean_name = " ".join(parts) if parts else label
-            cleaned_labels.append(clean_name)
-        return cleaned_labels
-    except:
-        return [chr(i) for i in range(ord('A'), ord('Z') + 1)]
-
-class_names = load_labels()
+ROBOFLOW_MODEL_ID = "alphabet-gesture-so0ya-1-rfdetr-small-t1"
+ROBOFLOW_API_KEY = "irem-can/alphabet-gesture-so0ya-1-rfdetr-small-t1"
 
 if "biriken_metin" not in st.session_state:
     st.session_state.biriken_metin = ""
@@ -69,108 +48,100 @@ if "son_tahmin_harf" not in st.session_state:
 if "son_tahmin_guven" not in st.session_state:
     st.session_state.son_tahmin_guven = 0.0
 
-MODEL_YOLU = "model.tflite"
-GITHUB_RAW_URL = "https://github.com/irem1206/capstone/raw/refs/heads/main/model.tflite"
+def roboflow_tahmin_yap(frame):
+    if not ROBOFLOW_API_KEY or ROBOFLOW_API_KEY == "BURAYA_ROBOFLOW_API_KEYINIZI_YAZIN":
+        return frame, "API KEY EKSİK", 0.0
 
-@st.cache_resource(show_spinner=False)
-def model_ve_etiketleri_yukle():
-    if not os.path.exists(MODEL_YOLU):
-        try:
-            urllib.request.urlretrieve(GITHUB_RAW_URL, MODEL_YOLU)
-        except Exception as e:
-            return None, f"Model indirme hatası: {e}"
-    
     try:
-        interpreter = tf.lite.Interpreter(model_path=MODEL_YOLU)
-        interpreter.allocate_tensors()
-        return interpreter, None
-    except Exception as e:
-        return None, f"Hata: {e}"
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        _, img_encoded = cv2.imencode('.jpg', frame_rgb)
+        img_bytes = img_encoded.tobytes()
 
-interpreter, model_hata = model_ve_etiketleri_yukle()
-
-if model_hata:
-    st.error(f"Sistem Başlatılamadı: {model_hata}")
-else:
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    input_dtype = input_details[0]['dtype']
-
-    def tahmin_uret(frame):
-        expected_shape = input_details[0]['shape']
-        target_size = (expected_shape[2], expected_shape[1])
+        upload_url = f"https://detect.roboflow.com/{ROBOFLOW_MODEL_ID}?api_key={ROBOFLOW_API_KEY}&confidence=40"
         
-        channels = expected_shape[3] if len(expected_shape) > 3 else 3
-        
-        if channels == 1:
-            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-        img_pil = Image.fromarray(processed_frame)
-        img = ImageOps.fit(img_pil, target_size, Image.Resampling.LANCZOS)
-        
-        if input_dtype == np.float32:
-            img_array = (np.asarray(img, dtype=np.float32) / 127.5) - 1.0
-        else:
-            img_array = np.asarray(img, dtype=input_dtype)
-            
-        if len(img_array.shape) == 2 and channels == 1:
-            img_array = np.expand_dims(img_array, axis=-1)
-            
-        img_array = np.expand_dims(img_array, axis=0)
-        
-        safe_shape = [1 if d == -1 else d for d in expected_shape]
-        img_array = np.reshape(img_array, safe_shape)
+        response = requests.post(
+            upload_url,
+            data=img_bytes,
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
 
-        interpreter.set_tensor(input_details[0]['index'], img_array)
-        interpreter.invoke()
-        prediction = interpreter.get_tensor(output_details[0]['index'])
+        if response.status_code != 200:
+            return frame_rgb, "API Hatası", 0.0
+
+        predictions = response.json().get("predictions", [])
         
-        pred_vals = prediction[0]
-        index = np.argmax(pred_vals)
-        confidence = float(pred_vals[index])
-        
-        if confidence > 1.0:
-            confidence = confidence / 255.0
+        if not predictions:
+            return frame_rgb, "Bilinmeyen", 0.0
 
-        class_name = class_names[index % len(class_names)] if len(class_names) > 0 else "Bilinmeyen"
-        return class_name, confidence
+        processed_frame = frame_rgb.copy()
+        best_class = "Bilinmeyen"
+        max_conf = 0.0
 
-    st.header("🧠 Yapay Zeka Model Tahmin Paneli")
-    input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
+        for pred in predictions:
+            x, y, w, h = int(pred['x']), int(pred['y']), int(pred['width']), int(pred['height'])
+            label = str(pred['class']).upper()
+            conf = float(pred['confidence'])
 
-    frame = None
+            if conf > max_conf:
+                max_conf = conf
+                best_class = label
 
-   if input_mode == "Görsel Yükleme (Test)":
-    uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
+            pt1 = (int(x - w / 2), int(y - h / 2))
+            pt2 = (int(x + w / 2), int(y + h / 2))
+
+            cv2.rectangle(processed_frame, pt1, pt2, (0, 255, 0), 3)
+            cv2.putText(
+                processed_frame, 
+                f"{label} %{int(conf*100)}", 
+                (pt1[0], max(pt1[1] - 10, 20)),
+                cv2.FONT_HERSHEY_SIMPLEX, 
+                0.9, 
+                (0, 255, 0), 
+                2
+            )
+
+        return processed_frame, best_class, max_conf
+
+    except Exception:
+        return frame, "Hata", 0.0
+
+# --- 1. BÖLÜM: MODEL TAHMİN PANELSİ ---
+st.header("🧠 Yapay Zeka Model Tahmin Paneli")
+input_mode = st.selectbox("Çalışma Modunu Seçin:", ("Görsel Yükleme (Test)", "Canlı Kamera Akışı (Gelişmiş)"))
+
+frame = None
+
+if input_mode == "Görsel Yükleme (Test)":
+    uploaded_file = st.file_uploader("Modeli test etmek için bir fotoğraf seçin...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file).convert('RGB')
         frame = np.array(image)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    else:
-        st.warning("📹 Canlı kamera akışı için tarayıcı kamera izinlerinin açık olması gerekir. (WebRTC / OpenCV altyapısı)")
-        camera_image = st.camera_input("Kameradan Anlık Görüntü Al")
-        if camera_image is not None:
-            bytes_data = camera_image.getvalue()
-            frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-            cam_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-            st.image(cam_img, caption="Canlı Kare İşleniyor...", width=300)
+else:
+    st.warning("📹 Canlı kamera akışı için tarayıcı kamera izinlerinin açık olması gerekir.")
+    camera_image = st.camera_input("Kameradan Anlık Görüntü Al")
+    if camera_image is not None:
+        bytes_data = camera_image.getvalue()
+        frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
 
-    if frame is not None:
-        try:
-            class_name, confidence = tahmin_uret(frame)
-            tahmin_harf = class_name.split()[0].upper() if " " in class_name else class_name.upper()
-            st.session_state.son_tahmin_harf = tahmin_harf
-            st.session_state.son_tahmin_guven = confidence
-            
+if frame is not None:
+    try:
+        processed_img, tahmin_harf, confidence = roboflow_tahmin_yap(frame)
+        st.session_state.son_tahmin_harf = tahmin_harf
+        st.session_state.son_tahmin_guven = confidence
+        
+        st.image(processed_img, caption="Roboflow Nesne Tespiti Sonucu", width=350)
+        
+        if confidence > 0.35:
             st.success(f"🎯 Model Tahmini: **{tahmin_harf} Harfi** (Güven Skoru: %{confidence*100:.1f})")
-            
             if st.button("➕ Bu Harfi Cümleye Ekle", type="primary"):
                 st.session_state.biriken_metin += tahmin_harf
                 st.rerun()
-        except Exception as e:
-            st.error(f"Tahmin sırasında hata oluştu: {e}")
+        else:
+            st.warning("Ekranda belirgin bir el işareti algılanamadı.")
+            
+    except Exception as e:
+        st.error(f"Tahmin sırasında hata oluştu: {e}")
 
 st.markdown("---")
 st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
@@ -178,7 +149,7 @@ st.header("🔤 İnteraktif Alfabe ve Cümle Paneli")
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.subheader("Harf Seçimi")
+    st.subheader("Harf Seçim Matrisi")
     harfler = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
     
     cols = st.columns(6)
@@ -229,32 +200,17 @@ with col2:
     ">🔊 Cümleyi Sesli Oku (Text-to-Speech)</button>
     """
     st.markdown(ses_butonu_html, unsafe_allow_html=True)
-    
-    current_letter = st.session_state.secilen_harf
-    st.markdown(f"**Veri Seti Örnek Görseli ({current_letter}):**")
-    
-    dosya_adi = f"{current_letter}.png"
-    if not os.path.exists(dosya_adi):
-        dosya_adi = f"{current_letter}.jpg"
-        
-    if os.path.exists(dosya_adi):
-        img_ornek = Image.open(dosya_adi)
-        st.image(img_ornek, width=140, caption=f"Kaggle Veri Seti: {current_letter}")
-    else:
-        st.info(f"📌 '{current_letter}' için örnek görsel yüklenmemiş.")
 
 st.markdown("---")
-st.header("🤟 Cümlenin İşaret Dili Karşılığı")
+st.header("🤟 Cümlenin İşaret Dili Karşılığı (Görsel Akış)")
 
 metin = st.session_state.biriken_metin.upper()
 
 if metin.strip():
     kelimeler = metin.split(' ')
-    
     for kelime_idx, kelime in enumerate(kelimeler):
         if kelime:
             st.markdown(f"### 🔹 {kelime_idx + 1}. Kelime: **{kelime}**")
-            
             harfler = [h for h in kelime if h.isalpha()]
             if harfler:
                 cols = st.columns(min(len(harfler), 6))
@@ -272,4 +228,4 @@ if metin.strip():
                             st.warning(f"'{harf}' yok")
             st.markdown("---")
 else:
-    st.info("💡 Yukarıdan harflere basarak veya model ile test ederek cümle oluşturun; kelimeler ve işaret dili görselleri burada gruplanarak listelensin.")
+    st.info("💡 Yukarıdan harflere basarak veya model ile test ederek cümle oluşturun.")
