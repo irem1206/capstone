@@ -142,13 +142,12 @@ else:
 
     frame = None
 
-    if input_mode == "Görsel Yükleme":
-        uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file).convert('RGB')
-            st.image(image, caption="Yüklenen Test Görüntüsü", width=300)
-            frame = np.array(image)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+   if input_mode == "Görsel Yükleme (Test)":
+    uploaded_file = st.file_uploader("Modeli test etmek için bir işaret dili fotoğrafı seçin (.jpg, .png)...", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file).convert('RGB')
+        frame = np.array(image)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     else:
         st.warning("📹 Canlı kamera akışı için tarayıcı kamera izinlerinin açık olması gerekir. (WebRTC / OpenCV altyapısı)")
         camera_image = st.camera_input("Kameradan Anlık Görüntü Al")
